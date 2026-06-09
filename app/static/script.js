@@ -1,0 +1,1 @@
+console.log("WebSocket bidding connection initial script");
