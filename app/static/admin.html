@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NexBid - Admin Liquidation Console</title>
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@400;600;700;800&display=swap" rel="stylesheet">
+    <!-- Main Style Sheet -->
+    <link rel="stylesheet" href="style.css?v=2">
+</head>
+<body>
+    <div class="background-glows">
+        <div class="glow glow-1"></div>
+        <div class="glow glow-2"></div>
+    </div>
+
+    <!-- Header / Navbar -->
+    <header class="navbar">
+        <div class="nav-container">
+            <h1 class="logo">Nex<span>Bid</span> Console</h1>
+            <div id="user-profile" class="user-profile hidden">
+                <span class="role-badge admin" id="nav-role">Admin</span>
+                <span class="user-name" id="nav-username">username</span>
+                <button onclick="logout()" class="btn btn-secondary btn-sm">Sign Out</button>
+            </div>
+        </div>
+    </header>
+
+    <main class="container">
+        <!-- 1. Authentication View (Admin Only) -->
+        <section id="auth-section" class="auth-card">
+            <div class="auth-header">
+                <h2>NexBid Admin Portal</h2>
+                <p>Authorized Liquidation Personnel Only</p>
+            </div>
+
+            <!-- Login Form -->
+            <form id="login-form" onsubmit="handleLogin(event)" class="auth-form">
+                <div class="form-group">
+                    <label for="login-username">Administrator Username</label>
+                    <input type="text" id="login-username" required placeholder="e.g. admin">
+                </div>
+                <div class="form-group">
+                    <label for="login-password">Password</label>
+                    <input type="password" id="login-password" required placeholder="e.g. admin123">
+                </div>
+                <button type="submit" class="btn btn-primary btn-block">Authenticate Console</button>
+                
+                <div class="quick-credentials">
+                    <p>Demo Admin Credentials:</p>
+                    <div class="credential-tags">
+                        <span onclick="fillCredentials('admin', 'admin123')">Admin: admin / admin123</span>
+                    </div>
+                </div>
+            </form>
+            <div id="auth-error" class="error-text hidden"></div>
+        </section>
+
+        <!-- 2. Admin Workspace Dashboard -->
+        <section id="admin-dashboard" class="dashboard-section hidden">
+            <div class="dashboard-header">
+                <div>
+                    <h2>Liquidation Console</h2>
+                    <p class="subtitle">Admin workspace to create and manage institutional bidding rounds</p>
+                </div>
+            </div>
+
+            <div class="admin-grid">
+                <!-- Create Auction Form Card -->
+                <div class="glass-card admin-form-card">
+                    <h3>List Asset for Auction</h3>
+                    <form onsubmit="handleCreateAuction(event)">
+                        <div class="form-group">
+                            <label for="auc-title">Asset Title</label>
+                            <input type="text" id="auc-title" required placeholder="e.g. US Treasury Bonds Block #4092">
+                        </div>
+                        <div class="form-group">
+                            <label for="auc-desc">Description / Details</label>
+                            <textarea id="auc-desc" rows="3" placeholder="Specify collateral detail, rating, yield metrics..."></textarea>
+                        </div>
+                        <div class="grid-2-col">
+                            <div class="form-group">
+                                <label for="auc-price">Start Price (USD)</label>
+                                <input type="number" step="0.01" id="auc-price" required placeholder="e.g. 50000.00">
+                            </div>
+                            <div class="form-group">
+                                <label for="auc-duration">Duration (Minutes)</label>
+                                <input type="number" id="auc-duration" required placeholder="e.g. 10">
+                            </div>
+                        </div>
+                        <button type="submit" class="btn btn-primary btn-block">Launch Auction</button>
+                    </form>
+                </div>
+
+                <!-- Admin Stats/Overview Card -->
+                <div class="glass-card admin-stats-card">
+                    <h3>Live Auction Overview</h3>
+                    <div id="admin-auctions-list" class="admin-auctions-list">
+                        <!-- Filled dynamically -->
+                        <div class="empty-state">No active auctions listed. Use the form to list one!</div>
+                    </div>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <!-- Global Toast Alert Container -->
+    <div id="toast-container" class="toast-container"></div>
+
+    <!-- Admin Frontend Logic -->
+    <script src="admin.js"></script>
+</body>
+</html>
