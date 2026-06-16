@@ -1,0 +1,1 @@
+console.log("Admin panel client script loaded");
