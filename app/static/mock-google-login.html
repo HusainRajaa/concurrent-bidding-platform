@@ -1,0 +1,279 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sign in - Google Accounts</title>
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap" rel="stylesheet">
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: 'Roboto', sans-serif;
+        }
+        body {
+            background-color: #f0f4f9;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            color: #1f1f1f;
+        }
+        .login-card {
+            background: #ffffff;
+            width: 450px;
+            padding: 40px;
+            border-radius: 28px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.05);
+            text-align: left;
+            border: 1px solid #e3e3e3;
+        }
+        .header {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        .logo {
+            display: inline-block;
+            font-size: 24px;
+            font-weight: 500;
+            margin-bottom: 16px;
+        }
+        .logo span:nth-child(1) { color: #4285F4; } /* G */
+        .logo span:nth-child(2) { color: #EA4335; } /* o */
+        .logo span:nth-child(3) { color: #FBBC05; } /* o */
+        .logo span:nth-child(4) { color: #4285F4; } /* g */
+        .logo span:nth-child(5) { color: #34A853; } /* l */
+        .logo span:nth-child(6) { color: #EA4335; } /* e */
+        
+        h1 {
+            font-size: 24px;
+            font-weight: 400;
+            color: #1f1f1f;
+            margin-bottom: 8px;
+        }
+        .subtitle {
+            font-size: 16px;
+            color: #5f6368;
+            margin-bottom: 24px;
+        }
+        .auth-notice {
+            background: #eff6ff;
+            border: 1px solid #bfdbfe;
+            color: #1e40af;
+            padding: 12px 16px;
+            border-radius: 12px;
+            font-size: 13px;
+            line-height: 1.4;
+            margin-bottom: 24px;
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+        .auth-notice strong {
+            color: #1e3a8a;
+        }
+        
+        .account-list {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            margin-bottom: 20px;
+        }
+        .account-item {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            padding: 14px 16px;
+            border: 1px solid #dadce0;
+            border-radius: 12px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+        .account-item:hover {
+            background-color: #f8fafd;
+            border-color: #4285F4;
+        }
+        .avatar {
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            background: #4285f4;
+            color: #ffffff;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 500;
+            font-size: 16px;
+        }
+        .account-info {
+            display: flex;
+            flex-direction: column;
+        }
+        .account-name {
+            font-weight: 500;
+            font-size: 14px;
+            color: #3c4043;
+        }
+        .account-email {
+            font-size: 12px;
+            color: #5f6368;
+        }
+        
+        .divider {
+            display: flex;
+            align-items: center;
+            text-align: center;
+            color: #70757a;
+            font-size: 12px;
+            margin: 20px 0;
+        }
+        .divider::before, .divider::after {
+            content: '';
+            flex: 1;
+            border-bottom: 1px solid #dadce0;
+        }
+        .divider:not(:empty)::before {
+            margin-right: .5em;
+        }
+        .divider:not(:empty)::after {
+            margin-left: .5em;
+        }
+        
+        .form-group {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            margin-bottom: 20px;
+        }
+        .form-group label {
+            font-size: 12px;
+            font-weight: 500;
+            color: #5f6368;
+        }
+        input {
+            width: 100%;
+            border: 1px solid #dadce0;
+            border-radius: 8px;
+            padding: 12px 16px;
+            font-size: 14px;
+            outline: none;
+            transition: all 0.2s ease;
+        }
+        input:focus {
+            border-color: #4285F4;
+            box-shadow: 0 0 0 2px rgba(66, 133, 244, 0.15);
+        }
+        .btn-submit {
+            background-color: #0b57d0;
+            color: #ffffff;
+            border: none;
+            border-radius: 100px;
+            padding: 12px 24px;
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            width: 100%;
+            transition: background-color 0.2s;
+            text-align: center;
+        }
+        .btn-submit:hover {
+            background-color: #0842a0;
+        }
+        
+        .footer {
+            display: flex;
+            justify-content: space-between;
+            margin-top: 30px;
+            font-size: 12px;
+            color: #70757a;
+        }
+        .footer a {
+            color: #70757a;
+            text-decoration: none;
+            margin-left: 12px;
+        }
+        .footer a:hover {
+            text-decoration: underline;
+        }
+    </style>
+</head>
+<body>
+    <div class="login-card">
+        <div class="header">
+            <div class="logo">
+                <span>G</span><span>o</span><span>o</span><span>g</span><span>l</span><span>e</span>
+            </div>
+            <h1>Choose an account</h1>
+            <p class="subtitle">to continue to <strong>NexBid</strong></p>
+        </div>
+        
+        <div class="auth-notice">
+            <span><strong>Mock Authorization Mode</strong></span>
+            <span>Local Google login simulation is active because Google OAuth client credentials are not configured.</span>
+        </div>
+        
+        <div class="account-list">
+            <div class="account-item" onclick="loginWith('Sarah Connor', 'sarah.connor@gmail.com')">
+                <div class="avatar" style="background: #12b886;">S</div>
+                <div class="account-info">
+                    <span class="account-name">Sarah Connor</span>
+                    <span class="account-email">sarah.connor@gmail.com</span>
+                </div>
+            </div>
+            <div class="account-item" onclick="loginWith('John Doe', 'john.doe@gmail.com')">
+                <div class="avatar">J</div>
+                <div class="account-info">
+                    <span class="account-name">John Doe</span>
+                    <span class="account-email">john.doe@gmail.com</span>
+                </div>
+            </div>
+        </div>
+        
+        <div class="divider">or use another account</div>
+        
+        <form onsubmit="handleCustomLogin(event)">
+            <div class="form-group">
+                <label for="custom-name">Full Name</label>
+                <input type="text" id="custom-name" required placeholder="e.g. Alice Smith">
+            </div>
+            <div class="form-group">
+                <label for="custom-email">Google Email Address</label>
+                <input type="email" id="custom-email" required placeholder="e.g. alice.smith@gmail.com">
+            </div>
+            <button type="submit" class="btn-submit">Continue</button>
+        </form>
+        
+        <div class="footer">
+            <span>English (United States)</span>
+            <div>
+                <a href="#">Help</a>
+                <a href="#">Privacy</a>
+                <a href="#">Terms</a>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        function loginWith(name, email) {
+            submitMockAuth(name, email);
+        }
+        
+        function handleCustomLogin(e) {
+            e.preventDefault();
+            const name = document.getElementById("custom-name").value.trim();
+            const email = document.getElementById("custom-email").value.trim();
+            submitMockAuth(name, email);
+        }
+        
+        function submitMockAuth(name, email) {
+            // Encode code as mock:email:name
+            const code = "mock:" + encodeURIComponent(email) + ":" + encodeURIComponent(name);
+            window.location.href = "/auth/google/callback?code=" + code;
+        }
+    </script>
+</body>
+</html>
