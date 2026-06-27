@@ -1,9 +1,206 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-    <title>Bidding System</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NexBid - Bidding Floor</title>
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@400;600;700;800&display=swap" rel="stylesheet">
+    <!-- Main Style Sheet -->
+    <link rel="stylesheet" href="style.css?v=2">
 </head>
 <body>
-    <h1>Bidding System Dashboard</h1>
+    <div class="background-glows">
+        <div class="glow glow-1"></div>
+        <div class="glow glow-2"></div>
+    </div>
+
+    <!-- Header / Navbar -->
+    <header class="navbar">
+        <div class="nav-container">
+            <h1 class="logo">Nex<span>Bid</span></h1>
+            <div id="user-profile" class="user-profile hidden">
+                <span class="role-badge" id="nav-role">User</span>
+                <span class="user-name" id="nav-username">username</span>
+                <button onclick="logout()" class="btn btn-secondary btn-sm">Sign Out</button>
+            </div>
+        </div>
+    </header>
+
+    <main class="container">
+        <!-- 1. Authentication View -->
+        <section id="auth-section" class="auth-card">
+            <div class="auth-header">
+                <h2>Welcome to NexBid</h2>
+                <p>Enterprise Institutional Bidding Portal</p>
+            </div>
+            
+            <div class="auth-tabs">
+                <button class="tab-btn active" onclick="switchAuthTab('login')">Sign In</button>
+                <button class="tab-btn" onclick="switchAuthTab('register')">Register</button>
+            </div>
+
+            <!-- Login Form -->
+            <form id="login-form" onsubmit="handleLogin(event)" class="auth-form">
+                <div class="form-group">
+                    <label for="login-username">Username</label>
+                    <input type="text" id="login-username" required placeholder="e.g. bidder1">
+                </div>
+                <div class="form-group">
+                    <label for="login-password">Password</label>
+                    <input type="password" id="login-password" required placeholder="e.g. bidder123">
+                </div>
+                <button type="submit" class="btn btn-primary btn-block">Authenticate</button>
+                
+                <div class="quick-credentials">
+                    <p>Demo Bidders:</p>
+                    <div class="credential-tags">
+                        <span onclick="fillCredentials('bidder1', 'bidder123')">User 1: bidder1 / bidder123</span>
+                        <span onclick="fillCredentials('bidder2', 'bidder223')">User 2: bidder2 / bidder223</span>
+                    </div>
+                </div>
+            </form>
+
+            <!-- Register Form -->
+            <form id="register-form" onsubmit="handleRegister(event)" class="auth-form hidden">
+                <div class="form-group">
+                    <label for="reg-username">Username</label>
+                    <input type="text" id="reg-username" required placeholder="Min 3 characters">
+                </div>
+                <div class="form-group">
+                    <label for="reg-email">Email Address</label>
+                    <div style="display: flex; gap: 10px;">
+                        <input type="email" id="reg-email" required placeholder="email@nexbid.com">
+                        <button type="button" class="btn btn-secondary" id="btn-send-otp" onclick="requestOTP(event)" style="white-space: nowrap; padding: 10px 14px; font-size: 0.85rem;">Send OTP</button>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label for="reg-otp">OTP Verification Code</label>
+                    <input type="text" id="reg-otp" required placeholder="Enter 6-digit code" pattern="\d{6}" title="6-digit verification code">
+                </div>
+                <div class="form-group">
+                    <label for="reg-mobile">Mobile Number</label>
+                    <input type="text" id="reg-mobile" required placeholder="e.g. +1 555 555 5555">
+                </div>
+                <div class="form-group">
+                    <label for="reg-password">Password</label>
+                    <input type="password" id="reg-password" required placeholder="Min 6 characters">
+                </div>
+                <button type="submit" class="btn btn-primary btn-block">Create Account</button>
+            </form>
+            <div id="auth-error" class="error-text hidden"></div>
+        </section>
+
+        <!-- 3. User Bidding Dashboard -->
+        <section id="user-dashboard" class="dashboard-section hidden">
+            <div class="dashboard-header">
+                <div>
+                    <h2>Market Order Book</h2>
+                    <p class="subtitle">Live-updating bidding floor. All bids validated in-memory and synchronized in real-time.</p>
+                </div>
+                <div class="ws-status">
+                    <span class="status-dot disconnected" id="ws-dot"></span>
+                    <span id="ws-status-text">Connecting...</span>
+                </div>
+            </div>
+
+            <div class="dashboard-grid">
+                <!-- Live Bid Stream (Left 8 Columns) -->
+                <div class="auctions-wrapper">
+                    <h3 class="section-title">Active Liquidation Rounds</h3>
+                    <div id="user-auctions-grid" class="auctions-grid">
+                        <!-- Filled dynamically with glass-cards -->
+                        <div class="empty-state">No active auctions at this time. Wait for administrator to list assets.</div>
+                    </div>
+                </div>
+
+                <!-- Real-Time Activity Ledger (Right 4 Columns) -->
+                <div class="glass-card ledger-card">
+                    <h3 class="ledger-title">Market Activity Ledger</h3>
+                    <div id="ledger-stream" class="ledger-stream">
+                        <!-- Live stream notifications from WebSockets -->
+                        <div class="ledger-placeholder">Ledger is active. Live trades will stream here...</div>
+                    </div>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <!-- Global Toast Alert Container -->
+    <div id="toast-container" class="toast-container"></div>
+
+    <!-- Detailed Auction View Overlay Modal -->
+    <div id="detail-modal" class="detail-modal hidden">
+        <div class="detail-modal-backdrop" onclick="closeAuctionDetail()"></div>
+        <div class="detail-modal-content glass-card">
+            <div class="detail-modal-header">
+                <h2 id="detail-title">Asset Liquidation Details</h2>
+                <button onclick="closeAuctionDetail()" class="btn btn-secondary btn-sm">Close Console</button>
+            </div>
+            
+            <div class="detail-grid">
+                <!-- Left: Asset Stats & Bidding form -->
+                <div class="detail-main">
+                    <div class="detail-info-block">
+                        <span class="label">Time Remaining</span>
+                        <div id="detail-timer" class="detail-timer-val">Calculating...</div>
+                    </div>
+                    <div class="detail-info-block">
+                        <span class="label">Collateral Description</span>
+                        <p id="detail-desc" class="detail-desc-text">Full description details...</p>
+                    </div>
+                    <div class="detail-pricing-grid">
+                        <div class="detail-info-block">
+                            <span class="label">Starting Price</span>
+                            <div id="detail-start-price" class="detail-val">$0.00</div>
+                        </div>
+                        <div class="detail-info-block">
+                            <span class="label">Current Price</span>
+                            <div id="detail-current-price" class="detail-val highlight">$0.00</div>
+                            <div class="highest-bidder-label">
+                                Bidder ID: <span id="detail-bidder-id">None</span>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="detail-bid-box">
+                        <h3>Submit Bidding Order</h3>
+                        <form id="detail-bid-form" onsubmit="handlePlaceDetailBid(event)">
+                            <div class="bid-input-group">
+                                <input type="number" step="0.01" id="detail-bid-input" required placeholder="Enter amount">
+                                <button type="submit" class="btn btn-primary">Place Bid</button>
+                            </div>
+                            <div class="auc-card-error" id="detail-bid-error"></div>
+                        </form>
+                    </div>
+                </div>
+                
+                <!-- Right: Specific Bids Table -->
+                <div class="detail-history">
+                    <h3>Audit Ledger (Bidding Log)</h3>
+                    <div class="history-table-wrapper">
+                        <table class="history-table">
+                            <thead>
+                                <tr>
+                                    <th>Time</th>
+                                    <th>Bidder</th>
+                                    <th>Amount</th>
+                                    <th>Status</th>
+                                </tr>
+                            </thead>
+                            <tbody id="detail-history-rows">
+                                <!-- Dynamic rows filled via js -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Frontend logic -->
+    <script src="script.js"></script>
 </body>
 </html>
