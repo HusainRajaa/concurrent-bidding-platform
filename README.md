@@ -55,13 +55,14 @@ As a secondary safeguard at the database persistence layer, SQLAlchemy Optimisti
 
 ## Roadmap
 
-1. ~~**Phase 1: Project Scaffolding & Infrastructure**~~ (Completed)
+1. **Phase 1: Project Scaffolding & Infrastructure** (Completed)
    - Initialized Python FastAPI, PostgreSQL, and Redis environments.
-2. **Phase 2: Core Bidding Engine** (In Progress)
+2. **Phase 2: Core Bidding Engine** (Completed)
    - Implementation of Redis distributed locking and strict bid validation logic.
-3. **Phase 3: Real-Time Broadcasting**
+3. **Phase 3: Real-Time Broadcasting** (Completed)
    - Integration of WebSockets for live market data updates.
-4. **Phase 4: Async Persistence**
+4. **Phase 4: Async Persistence** (Completed)
    - Implementation of background workers for reliable Redis-to-PostgreSQL data replication.
-5. **Phase 5: API & UI Integration**
+5. **Phase 5: API & UI Integration** (Completed)
    - Development of RESTful APIs and a demonstration frontend.
+
