@@ -20,18 +20,36 @@
     <!-- Header / Navbar -->
     <header class="navbar">
         <div class="nav-container">
-            <h1 class="logo">Nex<span>Bid</span></h1>
-            <div id="user-profile" class="user-profile hidden">
-                <span class="role-badge" id="nav-role">User</span>
-                <span class="user-name" id="nav-username">username</span>
-                <button onclick="logout()" class="btn btn-secondary btn-sm">Sign Out</button>
+            <h1 class="logo" id="nav-logo" style="cursor: pointer;" onclick="exitPortal()">Nex<span>Bid</span></h1>
+            <div style="display: flex; gap: 15px; align-items: center;">
+                <button id="btn-exit-portal" onclick="exitPortal()" class="btn btn-secondary btn-sm hidden">← Exit Portal</button>
+                <div id="user-profile" class="user-profile hidden">
+                    <span class="role-badge" id="nav-role">User</span>
+                    <span class="user-name" id="nav-username">username</span>
+                    <button onclick="logout()" class="btn btn-secondary btn-sm">Sign Out</button>
+                </div>
             </div>
         </div>
     </header>
 
     <main class="container">
+        <!-- Private Portal Directory (Shown when no bank context) -->
+        <section id="tenant-directory" class="auth-card hidden">
+            <div class="auth-header">
+                <h2>NexBid Portals</h2>
+                <p>Select a private banking portal to begin bidding</p>
+            </div>
+            <div id="banks-grid" class="banks-grid">
+                <!-- Banks loaded dynamically -->
+                <div class="empty-state">Loading private portals...</div>
+            </div>
+            <div style="text-align: center; margin-top: 20px;">
+                <a href="/admin.html" class="btn btn-secondary" style="display: inline-block; width: auto; font-size: 0.9rem; text-decoration: none;">Go to Console Login</a>
+            </div>
+        </section>
+
         <!-- 1. Authentication View -->
-        <section id="auth-section" class="auth-card">
+        <section id="auth-section" class="auth-card hidden">
             <div class="auth-header">
                 <h2>Welcome to NexBid</h2>
                 <p>Enterprise Institutional Bidding Portal</p>
@@ -45,8 +63,8 @@
             <!-- Login Form -->
             <form id="login-form" onsubmit="handleLogin(event)" class="auth-form">
                 <div class="form-group">
-                    <label for="login-username">Username</label>
-                    <input type="text" id="login-username" required placeholder="e.g. bidder1">
+                    <label for="login-email">Email Address</label>
+                    <input type="email" id="login-email" required placeholder="e.g. bidder1@nexbid.com">
                 </div>
                 <div class="form-group">
                     <label for="login-password">Password</label>
@@ -57,8 +75,8 @@
                 <div class="quick-credentials">
                     <p>Demo Bidders:</p>
                     <div class="credential-tags">
-                        <span onclick="fillCredentials('bidder1', 'bidder123')">User 1: bidder1 / bidder123</span>
-                        <span onclick="fillCredentials('bidder2', 'bidder223')">User 2: bidder2 / bidder223</span>
+                        <span onclick="fillCredentials('bidder1@nexbid.com', 'bidder123')">User 1: bidder1@nexbid.com / bidder123</span>
+                        <span onclick="fillCredentials('bidder2@nexbid.com', 'bidder223')">User 2: bidder2@nexbid.com / bidder223</span>
                     </div>
                 </div>
             </form>
@@ -71,18 +89,18 @@
                 </div>
                 <div class="form-group">
                     <label for="reg-email">Email Address</label>
-                    <div style="display: flex; gap: 10px;">
-                        <input type="email" id="reg-email" required placeholder="email@nexbid.com">
-                        <button type="button" class="btn btn-secondary" id="btn-send-otp" onclick="requestOTP(event)" style="white-space: nowrap; padding: 10px 14px; font-size: 0.85rem;">Send OTP</button>
-                    </div>
-                </div>
-                <div class="form-group">
-                    <label for="reg-otp">OTP Verification Code</label>
-                    <input type="text" id="reg-otp" required placeholder="Enter 6-digit code" pattern="\d{6}" title="6-digit verification code">
+                    <input type="email" id="reg-email" required placeholder="email@nexbid.com">
                 </div>
                 <div class="form-group">
                     <label for="reg-mobile">Mobile Number</label>
                     <input type="text" id="reg-mobile" required placeholder="e.g. +1 555 555 5555">
+                </div>
+                <div class="form-group">
+                    <label for="reg-role">Account Type</label>
+                    <select id="reg-role" required>
+                        <option value="user" selected>Normal Bidder (Buyer)</option>
+                        <option value="bank">Bank / Listing Institution (Seller)</option>
+                    </select>
                 </div>
                 <div class="form-group">
                     <label for="reg-password">Password</label>

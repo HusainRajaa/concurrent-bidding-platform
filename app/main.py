@@ -7,10 +7,10 @@ from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from contextlib import asynccontextmanager
 from datetime import datetime, timedelta, timezone
-from typing import List
+from typing import List, Optional
 
 from fastapi import FastAPI, Depends, HTTPException, status, WebSocket, WebSocketDisconnect, BackgroundTasks
-from fastapi.responses import RedirectResponse
+from fastapi.responses import RedirectResponse, FileResponse
 # pyrefly: ignore [missing-import]
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
@@ -26,7 +26,8 @@ from app.auth import (
     verify_password,
     create_access_token,
     get_current_user,
-    get_current_admin
+    get_current_admin,
+    get_current_bank_or_admin
 )
 from app.redis_client import redis_client, sync_auction_to_redis, sync_active_auctions_to_redis, place_bid_in_redis
 from app.worker import BidsConsumer
@@ -86,6 +87,18 @@ async def lifespan(app: FastAPI):
             )
             db.add(bidder2)
             logger.info("Seeded default bidder2 user (bidder2/bidder223).")
+
+        result = await db.execute(select(models.User).where(models.User.username == "bank1"))
+        if not result.scalar_one_or_none():
+            bank1 = models.User(
+                username="bank1",
+                email="bank1@nexbid.com",
+                hashed_password=hash_password("bank1234"),
+                role="bank",
+                mobile_number="+15555555555"
+            )
+            db.add(bank1)
+            logger.info("Seeded default bank1 user (bank1/bank1234).")
             
         await db.commit()
         
@@ -135,35 +148,97 @@ def send_otp_email(email_to: str, otp: str):
     If you did not initiate this registration request, please ignore this email.
     """
     
-    # Check if SMTP configuration is set
-    if not settings.SMTP_USERNAME or not settings.SMTP_PASSWORD:
-        # Mock Email log to stdout
-        mock_log = f"""
+    # Try sending via Resend API first if configured
+    if settings.RESEND_API_KEY:
+        try:
+            logger.info(f"Attempting to send OTP email via Resend API to {email_to}...")
+            res = httpx.post(
+                "https://api.resend.com/emails",
+                headers={
+                    "Authorization": f"Bearer {settings.RESEND_API_KEY}",
+                    "Content-Type": "application/json"
+                },
+                json={
+                    "from": "NexBid <onboarding@resend.dev>",
+                    "to": [email_to],
+                    "subject": subject,
+                    "html": f"""
+                    <h3>Welcome to NexBid!</h3>
+                    <p>Your registration verification code is: <strong>{otp}</strong></p>
+                    <p>This verification code will expire in 5 minutes.</p>
+                    <p>If you did not initiate this registration request, please ignore this email.</p>
+                    """
+                },
+                timeout=10.0
+            )
+            if res.status_code in (200, 201):
+                logger.info(f"Successfully sent OTP email via Resend to {email_to}. Response: {res.text}")
+                return
+            else:
+                logger.error(f"Resend API returned status {res.status_code}: {res.text}")
+        except Exception as err:
+            logger.error(f"Failed to send OTP email via Resend API to {email_to}: {err}", exc_info=True)
+
+    # Try sending via Brevo API if configured
+    if settings.BREVO_API_KEY and settings.BREVO_SENDER_EMAIL:
+        try:
+            logger.info(f"Attempting to send OTP email via Brevo API to {email_to}...")
+            res = httpx.post(
+                "https://api.brevo.com/v3/smtp/email",
+                headers={
+                    "api-key": settings.BREVO_API_KEY,
+                    "Content-Type": "application/json"
+                },
+                json={
+                    "sender": {"name": "NexBid", "email": settings.BREVO_SENDER_EMAIL},
+                    "to": [{"email": email_to}],
+                    "subject": subject,
+                    "htmlContent": f"""
+                    <h3>Welcome to NexBid!</h3>
+                    <p>Your registration verification code is: <strong>{otp}</strong></p>
+                    <p>This verification code will expire in 5 minutes.</p>
+                    <p>If you did not initiate this registration request, please ignore this email.</p>
+                    """
+                },
+                timeout=10.0
+            )
+            if res.status_code in (200, 201):
+                logger.info(f"Successfully sent OTP email via Brevo to {email_to}. Response: {res.text}")
+                return
+            else:
+                logger.error(f"Brevo API returned status {res.status_code}: {res.text}")
+        except Exception as err:
+            logger.error(f"Failed to send OTP email via Brevo API to {email_to}: {err}", exc_info=True)
+
+    # Fallback to SMTP if SMTP is configured
+    if settings.SMTP_USERNAME and settings.SMTP_PASSWORD:
+        try:
+            msg = MIMEMultipart()
+            msg['From'] = settings.SMTP_FROM
+            msg['To'] = email_to
+            msg['Subject'] = subject
+            msg.attach(MIMEText(body, 'plain'))
+            
+            with smtplib.SMTP(settings.SMTP_HOST, settings.SMTP_PORT) as server:
+                server.starttls()
+                server.login(settings.SMTP_USERNAME, settings.SMTP_PASSWORD)
+                server.sendmail(settings.SMTP_FROM, email_to, msg.as_string())
+            logger.info(f"Successfully sent OTP email via SMTP to {email_to}")
+            return
+        except Exception as e:
+            logger.error(f"Failed to send OTP email via SMTP to {email_to}: {e}", exc_info=True)
+
+    # Fallback to Mock Log if neither is configured
+    mock_log = f"""
 ============================================================
 [MOCK MAIL SENDER] OTP Verification Code Sent
 To: {email_to}
 Subject: {subject}
 OTP Code: {otp}
-(Note: SMTP credentials are not configured. This is logged here for free testing.)
+(Note: Resend API Key or SMTP credentials are not configured. This is logged here for local testing.)
 ============================================================
 """
-        logger.info(mock_log)
-        return
-        
-    try:
-        msg = MIMEMultipart()
-        msg['From'] = settings.SMTP_FROM
-        msg['To'] = email_to
-        msg['Subject'] = subject
-        msg.attach(MIMEText(body, 'plain'))
-        
-        with smtplib.SMTP(settings.SMTP_HOST, settings.SMTP_PORT) as server:
-            server.starttls()
-            server.login(settings.SMTP_USERNAME, settings.SMTP_PASSWORD)
-            server.sendmail(settings.SMTP_FROM, email_to, msg.as_string())
-        logger.info(f"Successfully sent OTP email to {email_to}")
-    except Exception as e:
-        logger.error(f"Failed to send OTP email to {email_to}: {e}", exc_info=True)
+    logger.info(mock_log)
 
 @app.post("/users/request-otp")
 async def request_otp(otp_req: schemas.OTPRequest, background_tasks: BackgroundTasks):
@@ -183,17 +258,7 @@ async def request_otp(otp_req: schemas.OTPRequest, background_tasks: BackgroundT
 
 @app.post("/users/register", response_model=schemas.UserResponse, status_code=status.HTTP_201_CREATED)
 async def register(user_in: schemas.UserCreate, db: AsyncSession = Depends(get_db)):
-    # 1. Verify OTP
-    redis_key = f"otp:email:{user_in.email}"
-    cached_otp = await redis_client.get(redis_key)
-    
-    if not cached_otp:
-        raise HTTPException(status_code=400, detail="OTP expired or not found. Please request a new OTP.")
-        
-    if cached_otp != user_in.otp:
-        raise HTTPException(status_code=400, detail="Invalid OTP code.")
-        
-    # 2. Check duplicates
+    # 1. Check duplicates
     result = await db.execute(select(models.User).where(models.User.username == user_in.username))
     if result.scalar_one_or_none():
         raise HTTPException(status_code=400, detail="Username already registered")
@@ -202,34 +267,66 @@ async def register(user_in: schemas.UserCreate, db: AsyncSession = Depends(get_d
     if result.scalar_one_or_none():
         raise HTTPException(status_code=400, detail="Email already registered")
         
+    # 2. Enforce tenant check for normal user
+    tenant_id = None
+    role = user_in.role or "user"
+    if role == "user":
+        if not user_in.tenant_username:
+            raise HTTPException(status_code=400, detail="Bidders must register under a specific bank context.")
+        
+        # Verify parent bank exists
+        bank_res = await db.execute(
+            select(models.User).where(models.User.username == user_in.tenant_username, models.User.role == "bank")
+        )
+        bank = bank_res.scalar_one_or_none()
+        if not bank:
+            raise HTTPException(status_code=400, detail=f"The specified bank '{user_in.tenant_username}' was not found.")
+        tenant_id = bank.id
+
     # 3. Create User
     new_user = models.User(
         username=user_in.username,
         email=user_in.email,
         hashed_password=hash_password(user_in.password),
         mobile_number=user_in.mobile_number,
-        role=user_in.role or "user"
+        role=role,
+        tenant_id=tenant_id
     )
     db.add(new_user)
     await db.commit()
     await db.refresh(new_user)
     
-    # 4. Clean up Redis OTP
-    await redis_client.delete(redis_key)
-    
     return new_user
 
 @app.post("/users/login", response_model=schemas.Token)
 async def login(user_in: schemas.UserLogin, db: AsyncSession = Depends(get_db)):
-    result = await db.execute(select(models.User).where(models.User.username == user_in.username))
+    result = await db.execute(
+        select(models.User)
+        .options(selectinload(models.User.tenant))
+        .where(models.User.email == user_in.email)
+    )
     user = result.scalar_one_or_none()
     if not user or not verify_password(user_in.password, user.hashed_password):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Incorrect username or password",
+            detail="Incorrect email or password",
             headers={"WWW-Authenticate": "Bearer"},
         )
-    
+        
+    # Enforce tenant isolation for normal users
+    if user.role == "user" and user_in.tenant_username:
+        tenant_ok = False
+        if user.tenant_id:
+            tenant_res = await db.execute(select(models.User).where(models.User.id == user.tenant_id))
+            tenant_bank = tenant_res.scalar_one_or_none()
+            if tenant_bank and tenant_bank.username == user_in.tenant_username:
+                tenant_ok = True
+        if not tenant_ok:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail=f"Incorrect email or password, or this account does not belong to {user_in.tenant_username}."
+            )
+            
     access_token = create_access_token(
         data={"sub": user.username, "role": user.role, "user_id": user.id}
     )
@@ -239,22 +336,32 @@ async def login(user_in: schemas.UserLogin, db: AsyncSession = Depends(get_db)):
 async def get_me(current_user: models.User = Depends(get_current_user)):
     return current_user
 
+@app.get("/banks", response_model=List[schemas.UserResponse])
+async def list_banks(db: AsyncSession = Depends(get_db)):
+    result = await db.execute(select(models.User).where(models.User.role == "bank"))
+    return result.scalars().all()
+
+@app.get("/bank-onboard")
+async def get_bank_onboard():
+    return FileResponse("app/static/bank-onboard.html")
+
 # ----------------- AUCTION ROUTERS -----------------
 
 @app.get("/auctions", response_model=List[schemas.AuctionResponse])
-async def list_auctions(db: AsyncSession = Depends(get_db)):
+async def list_auctions(bank: Optional[str] = None, db: AsyncSession = Depends(get_db)):
     # Returns all active auctions (end_time in the future)
     now = datetime.now(timezone.utc).replace(tzinfo=None)
-    result = await db.execute(
-        select(models.Auction).where(models.Auction.end_time > now).order_by(models.Auction.end_time.asc())
-    )
+    stmt = select(models.Auction).where(models.Auction.end_time > now)
+    if bank:
+        stmt = stmt.join(models.User, models.Auction.bank_id == models.User.id).where(models.User.username == bank)
+    result = await db.execute(stmt.order_by(models.Auction.end_time.asc()))
     return result.scalars().all()
 
 @app.post("/auctions", response_model=schemas.AuctionResponse, status_code=status.HTTP_201_CREATED)
 async def create_auction(
     auction_in: schemas.AuctionCreate,
     db: AsyncSession = Depends(get_db),
-    admin: models.User = Depends(get_current_admin)
+    current_user: models.User = Depends(get_current_bank_or_admin)
 ):
     end_time = datetime.now(timezone.utc).replace(tzinfo=None) + timedelta(minutes=auction_in.duration_minutes)
     
@@ -263,11 +370,20 @@ async def create_auction(
         description=auction_in.description,
         start_price=auction_in.start_price,
         current_price=auction_in.start_price,
-        end_time=end_time
+        end_time=end_time,
+        bank_id=current_user.id
     )
     db.add(new_auction)
     await db.commit()
     await db.refresh(new_auction)
+    
+    # Eagerly load bank relationship for schemas.AuctionResponse
+    result = await db.execute(
+        select(models.Auction)
+        .options(selectinload(models.Auction.bank))
+        .where(models.Auction.id == new_auction.id)
+    )
+    new_auction = result.scalar_one()
     
     # Cache the new auction in Redis
     await sync_auction_to_redis(new_auction)
@@ -360,11 +476,27 @@ async def place_bid(
     db: AsyncSession = Depends(get_db),
     current_user: models.User = Depends(get_current_user)
 ):
-    # Bidders should be regular users (admins are not supposed to bid, but we can allow it or restrict it)
-    if current_user.role == "admin":
+    # Bidders should be regular users (admins and banks are not supposed to bid)
+    if current_user.role in ("admin", "bank"):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Admin accounts cannot place bids on auctions."
+            detail="Console accounts cannot place bids on auctions."
+        )
+
+    # Fetch auction details to verify tenant/bank boundaries
+    result = await db.execute(select(models.Auction).where(models.Auction.id == auction_id))
+    auction = result.scalar_one_or_none()
+    if not auction:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Auction not found."
+        )
+
+    # Enforce private selling: normal users can only bid on auctions listed by their bank
+    if current_user.role == "user" and current_user.tenant_id != auction.bank_id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Access forbidden: You can only place bids on auctions listed by your registered bank."
         )
 
     # Place bid via Redis-based concurrency lock path

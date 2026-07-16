@@ -8,12 +8,14 @@ class UserCreate(BaseModel):
     email: EmailStr
     password: str = Field(..., min_length=6)
     mobile_number: str = Field(..., min_length=10, max_length=20)
-    otp: str = Field(..., min_length=6, max_length=6)
-    role: Optional[str] = Field("user", pattern="^(user|admin)$")
+    otp: Optional[str] = Field(None, min_length=6, max_length=6)
+    role: Optional[str] = Field("user", pattern="^(user|bank|admin)$")
+    tenant_username: Optional[str] = None
 
 class UserLogin(BaseModel):
-    username: str
+    email: EmailStr
     password: str
+    tenant_username: Optional[str] = None
 
 class UserResponse(BaseModel):
     id: int
@@ -21,6 +23,8 @@ class UserResponse(BaseModel):
     email: EmailStr
     role: str
     mobile_number: Optional[str] = None
+    tenant_id: Optional[int] = None
+    tenant_username: Optional[str] = None
 
     class Config:
         from_attributes = True
@@ -54,6 +58,8 @@ class AuctionResponse(BaseModel):
     highest_bidder_id: Optional[int] = None
     end_time: datetime
     version_id: int
+    bank_id: Optional[int] = None
+    bank_username: Optional[str] = None
 
     class Config:
         from_attributes = True

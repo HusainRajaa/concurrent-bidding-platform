@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NexBid - Bank Onboarding</title>
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@400;600;700;800&display=swap" rel="stylesheet">
+    <!-- Main Style Sheet -->
+    <link rel="stylesheet" href="style.css">
+    <style>
+        .onboard-success-card {
+            text-align: center;
+            padding: 20px 10px;
+        }
+        .success-icon {
+            font-size: 3rem;
+            color: var(--success);
+            margin-bottom: 15px;
+        }
+        .success-details {
+            background-color: var(--bg-light);
+            border: 1px solid var(--card-border);
+            border-radius: 8px;
+            padding: 15px;
+            margin: 20px 0;
+            text-align: left;
+        }
+        .success-details p {
+            margin-bottom: 8px;
+            font-size: 0.95rem;
+        }
+        .success-details p strong {
+            color: var(--primary);
+        }
+        .btn-group {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            margin-top: 20px;
+        }
+        .success-badge {
+            display: inline-block;
+            background-color: var(--success-bg);
+            color: var(--success);
+            border: 1px solid var(--success-border);
+            padding: 4px 10px;
+            border-radius: 12px;
+            font-size: 0.85rem;
+            font-weight: 500;
+            margin-bottom: 15px;
+        }
+    </style>
+</head>
+<body>
+    <div class="background-glows">
+        <div class="glow glow-1"></div>
+        <div class="glow glow-2"></div>
+    </div>
+
+    <!-- Header / Navbar -->
+    <header class="navbar">
+        <div class="nav-container">
+            <h1 class="logo" style="cursor: pointer;" onclick="window.location.href='/'">Nex<span>Bid</span></h1>
+            <span class="role-badge" style="background-color: var(--primary-glow); color: var(--primary); border: 1px solid var(--card-border);">Bank Onboarding</span>
+        </div>
+    </header>
+
+    <main class="container">
+        <!-- Onboarding Form Card -->
+        <section id="onboard-section" class="auth-card">
+            <div class="auth-header">
+                <h2>Onboard a New Bank</h2>
+                <p>Register an institutional seller portal on the NexBid platform</p>
+            </div>
+
+            <form id="onboard-form" onsubmit="handleOnboard(event)" class="auth-form">
+                <div class="form-group">
+                    <label for="onboard-username">Bank Name / Username</label>
+                    <input type="text" id="onboard-username" required placeholder="e.g. bank2 (lowercase, no spaces)" pattern="^[a-zA-Z0-9_\-]+$" title="Alphanumeric characters, dashes or underscores only">
+                </div>
+                
+                <div class="form-group">
+                    <label for="onboard-email">Contact Email Address</label>
+                    <input type="email" id="onboard-email" required placeholder="e.g. contact@bank2.com">
+                </div>
+
+                <div class="form-group">
+                    <label for="onboard-mobile">Mobile Number</label>
+                    <input type="text" id="onboard-mobile" required placeholder="e.g. +1 555 555 5555">
+                </div>
+
+                <div class="form-group">
+                    <label for="onboard-password">Portal Access Password</label>
+                    <input type="password" id="onboard-password" required placeholder="Min 6 characters" minlength="6">
+                </div>
+
+                <button type="submit" class="btn btn-primary btn-block">Onboard Institutional Bank</button>
+            </form>
+            <div id="onboard-error" class="error-text hidden" style="margin-top: 15px;"></div>
+        </section>
+
+        <!-- Onboarding Success Card (Hidden by Default) -->
+        <section id="success-section" class="auth-card hidden">
+            <div class="onboard-success-card">
+                <div class="success-icon">✓</div>
+                <span class="success-badge">Active</span>
+                <h2>Institution Onboarded Successfully</h2>
+                <p class="subtitle" style="margin-top: 5px;">Your private institutional portal is now live and active.</p>
+
+                <div class="success-details">
+                    <p><strong>Bank Portal Username:</strong> <span id="lbl-bank-username"></span></p>
+                    <p><strong>Registered Email:</strong> <span id="lbl-bank-email"></span></p>
+                    <p><strong>Portal URL:</strong> <span id="lbl-bank-url" style="color: var(--accent); font-family: monospace; font-size: 0.85rem;"></span></p>
+                </div>
+
+                <div class="btn-group">
+                    <a id="lnk-portal" href="#" class="btn btn-primary" style="text-decoration: none; text-align: center;">Enter Bidding Portal</a>
+                    <a href="/admin.html" class="btn btn-secondary" style="text-decoration: none; text-align: center;">Open Admin Console login</a>
+                    <a href="/" class="btn btn-secondary" style="text-decoration: none; text-align: center; border: none; background: transparent; color: var(--text-muted);">Back to Home Directory</a>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <script>
+        const API_BASE = window.location.origin;
+
+        async function handleOnboard(e) {
+            e.preventDefault();
+            const usernameInput = document.getElementById("onboard-username");
+            const emailInput = document.getElementById("onboard-email");
+            const mobileInput = document.getElementById("onboard-mobile");
+            const passwordInput = document.getElementById("onboard-password");
+            const errorEl = document.getElementById("onboard-error");
+            
+            errorEl.classList.add("hidden");
+            errorEl.textContent = "";
+
+            const username = usernameInput.value.trim().toLowerCase();
+            const email = emailInput.value.trim();
+            const mobile_number = mobileInput.value.trim();
+            const password = passwordInput.value;
+
+            try {
+                // Post directly to register API with role="bank"
+                const response = await fetch(`${API_BASE}/users/register`, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                        username,
+                        email,
+                        password,
+                        mobile_number,
+                        role: "bank"
+                    })
+                });
+
+                if (!response.ok) {
+                    const data = await response.json();
+                    throw new Error(data.detail || "Onboarding failed");
+                }
+
+                const newBank = await response.json();
+                
+                // Show Success Card
+                document.getElementById("onboard-section").classList.add("hidden");
+                document.getElementById("success-section").classList.remove("hidden");
+
+                // Update details
+                document.getElementById("lbl-bank-username").textContent = newBank.username;
+                document.getElementById("lbl-bank-email").textContent = newBank.email;
+                
+                const portalPath = `/?bank=${newBank.username}`;
+                document.getElementById("lbl-bank-url").textContent = window.location.origin + portalPath;
+                document.getElementById("lnk-portal").href = portalPath;
+
+            } catch (err) {
+                errorEl.textContent = err.message;
+                errorEl.classList.remove("hidden");
+            }
+        }
+    </script>
+</body>
+</html>

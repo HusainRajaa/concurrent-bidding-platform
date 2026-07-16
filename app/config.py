@@ -17,9 +17,21 @@ class Settings(BaseSettings):
     GOOGLE_CLIENT_ID: str = ""
     GOOGLE_CLIENT_SECRET: str = ""
     GOOGLE_REDIRECT_URI: str = "http://localhost:8000/auth/google/callback"
+    # Resend API Configuration
+    RESEND_API_KEY: str = ""
+
+    # Brevo (Sendinblue) Configuration
+    BREVO_API_KEY: str = ""
+    BREVO_SENDER_EMAIL: str = ""
     class Config:
         env_file = ".env"
         env_file_encoding = "utf-8"
 
 
 settings = Settings()
+
+import os
+# Support JWT_SECRET env var fallback for JWT_SECRET_KEY
+if not os.environ.get("JWT_SECRET_KEY") and os.environ.get("JWT_SECRET"):
+    settings.JWT_SECRET_KEY = os.environ.get("JWT_SECRET")
+

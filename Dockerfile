@@ -25,5 +25,5 @@ COPY app /app/app
 # Expose port 7860 for Hugging Face Spaces
 EXPOSE 7860
 
-# Start the uvicorn server in production mode
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "7860"]
+# Start the uvicorn server in production mode, dynamically using the PORT env var if available
+CMD ["sh", "-c", "uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-7860}"]

@@ -36,7 +36,7 @@ services:
     build: .
     container_name: nexbid-web
     ports:
-      - "8000:8000"
+      - "8000:7860"
     environment:
       - DATABASE_URL=postgresql+asyncpg://nexbid_user:nexbid_password@postgres:5432/nexbid_db
       - REDIS_URL=redis://redis:6379/0
@@ -51,6 +51,9 @@ services:
       - GOOGLE_CLIENT_ID=
       - GOOGLE_CLIENT_SECRET=
       - GOOGLE_REDIRECT_URI=http://localhost:8000/auth/google/callback
+      - RESEND_API_KEY=${RESEND_API_KEY}
+      - BREVO_API_KEY=${BREVO_API_KEY}
+      - BREVO_SENDER_EMAIL=${BREVO_SENDER_EMAIL}
     depends_on:
       postgres:
         condition: service_healthy

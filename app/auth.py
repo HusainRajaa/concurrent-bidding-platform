@@ -7,6 +7,8 @@ from fastapi.security import OAuth2PasswordBearer
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 
+from sqlalchemy.orm import selectinload
+
 from app.config import settings
 from app.database import get_db
 from app import models, schemas
@@ -61,7 +63,11 @@ async def get_current_user(
     except (jwt.PyJWTError, Exception):
         raise credentials_exception
 
-    result = await db.execute(select(models.User).where(models.User.id == token_data.user_id))
+    result = await db.execute(
+        select(models.User)
+        .options(selectinload(models.User.tenant))
+        .where(models.User.id == token_data.user_id)
+    )
     user = result.scalar_one_or_none()
     if user is None:
         raise credentials_exception
@@ -72,5 +78,13 @@ def get_current_admin(current_user: models.User = Depends(get_current_user)) -> 
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Access forbidden: Admin role required"
+        )
+    return current_user
+
+def get_current_bank_or_admin(current_user: models.User = Depends(get_current_user)) -> models.User:
+    if current_user.role not in ("bank", "admin"):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Access forbidden: Bank or Admin role required"
         )
     return current_user

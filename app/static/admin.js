@@ -12,7 +12,7 @@ async function initApp() {
     if (token) {
         try {
             await fetchUserProfile();
-            if (currentUser.role !== "admin") {
+            if (currentUser.role !== "admin" && currentUser.role !== "bank") {
                 showToast("Access denied: Regular users must log in via index.html", "error");
                 logout();
                 return;
@@ -29,14 +29,14 @@ async function initApp() {
 
 // ----------------- AUTHENTICATION -----------------
 
-function fillCredentials(username, password) {
-    document.getElementById("login-username").value = username;
+function fillCredentials(email, password) {
+    document.getElementById("login-email").value = email;
     document.getElementById("login-password").value = password;
 }
 
 async function handleLogin(e) {
     e.preventDefault();
-    const username = document.getElementById("login-username").value;
+    const email = document.getElementById("login-email").value;
     const password = document.getElementById("login-password").value;
     const errorEl = document.getElementById("auth-error");
     errorEl.classList.add("hidden");
@@ -45,7 +45,7 @@ async function handleLogin(e) {
         const response = await fetch(`${API_BASE}/users/login`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ username, password })
+            body: JSON.stringify({ email, password })
         });
 
         if (!response.ok) {
@@ -63,7 +63,7 @@ async function handleLogin(e) {
         if (!profileResp.ok) throw new Error("Could not retrieve profile");
         
         const tempUser = await profileResp.json();
-        if (tempUser.role !== "admin") {
+        if (tempUser.role !== "admin" && tempUser.role !== "bank") {
             throw new Error("Unauthorized: Bidders must log in via the Bidding Portal.");
         }
 
@@ -109,7 +109,7 @@ function loadDashboard() {
     
     // Update navbar profile
     document.getElementById("nav-role").textContent = currentUser.role;
-    document.getElementById("nav-role").classList.add("admin");
+    document.getElementById("nav-role").className = `role-badge ${currentUser.role}`;
     document.getElementById("nav-username").textContent = currentUser.username;
     document.getElementById("user-profile").classList.remove("hidden");
 
@@ -147,9 +147,14 @@ function renderAdminAuctions(list) {
             <div class="admin-auc-row" id="auc-row-${auc.id}">
                 <div>
                     <h4>${escapeHTML(auc.title)}</h4>
-                    <span class="auc-timer ${isEnded ? 'ended' : ''}" id="timer-${auc.id}" data-endtime="${auc.end_time}">
-                        ${isEnded ? 'Ended' : 'Calculating...'}
-                    </span>
+                    <div style="display: flex; align-items: center; gap: 8px; margin-top: 4px;">
+                        <span class="auc-timer ${isEnded ? 'ended' : ''}" id="timer-${auc.id}" data-endtime="${auc.end_time}">
+                            ${isEnded ? 'Ended' : 'Calculating...'}
+                        </span>
+                        <span class="role-badge ${auc.bank_id ? 'bank' : 'admin'}" style="font-size: 0.65rem; padding: 2px 8px; text-transform: none; font-weight: 500;">
+                            Listed by: ${escapeHTML(auc.bank_username || 'System')}
+                        </span>
+                    </div>
                 </div>
                 <div class="admin-auc-meta">
                     <div class="price">$${formatMoney(auc.current_price)}</div>

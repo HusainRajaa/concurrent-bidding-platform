@@ -13,6 +13,8 @@ document.addEventListener("DOMContentLoaded", () => {
     initApp();
 });
 
+let selectedBank = null;
+
 async function initApp() {
     // Check for OAuth redirect token in URL
     const urlParams = new URLSearchParams(window.location.search);
@@ -24,14 +26,74 @@ async function initApp() {
         window.history.replaceState({}, document.title, window.location.pathname);
     }
 
+    selectedBank = urlParams.get("bank") || null;
+
+    if (selectedBank) {
+        try {
+            const response = await fetch(`${API_BASE}/banks`);
+            if (!response.ok) throw new Error("Failed to verify bank portal.");
+            const banks = await response.json();
+            const bankExists = banks.some(b => b.username === selectedBank);
+            
+            if (!bankExists) {
+                showToast(`Private portal '${selectedBank}' does not exist.`, "error");
+                selectedBank = null;
+                window.history.replaceState({}, document.title, window.location.pathname);
+                loadTenantDirectory(banks);
+                return;
+            }
+        } catch (err) {
+            console.error(err);
+            showToast("Failed to verify bank portal.", "error");
+            loadTenantDirectory();
+            return;
+        }
+    }
+
+    if (!selectedBank) {
+        loadTenantDirectory();
+        return;
+    }
+
+    // Set portal branding details
+    document.getElementById("btn-exit-portal").classList.remove("hidden");
+    document.getElementById("nav-logo").innerHTML = `Nex<span>Bid</span> - ${escapeHTML(selectedBank)}`;
+    document.title = `NexBid - ${escapeHTML(selectedBank)} Portal`;
+
+    // Only give option for the buyer, not for the seller when a bank portal is selected
+    const regRoleSelect = document.getElementById("reg-role");
+    if (regRoleSelect) {
+        const bankOption = regRoleSelect.querySelector('option[value="bank"]');
+        if (bankOption) {
+            bankOption.remove();
+        }
+        regRoleSelect.value = "user";
+    }
+
     if (token) {
         try {
             await fetchUserProfile();
             if (currentUser.role !== "user") {
-                showToast("Admin accounts must log in via the Admin Portal", "error");
+                if (currentUser.role === "admin" || currentUser.role === "bank") {
+                    localStorage.setItem("token_admin", token);
+                    localStorage.removeItem("token");
+                    window.location.href = "/admin.html";
+                    return;
+                }
+                showToast("Console accounts must log in via the Console Portal", "error");
                 logout();
                 return;
             }
+            
+            // Enforce tenant match
+            if (currentUser.tenant_username !== selectedBank) {
+                showToast(`This session belongs to the ${currentUser.tenant_username} portal. Redirecting...`, "warning");
+                setTimeout(() => {
+                    window.location.href = `/?bank=${currentUser.tenant_username}`;
+                }, 1500);
+                return;
+            }
+            
             loadDashboard();
         } catch (e) {
             console.error("Token expired or invalid", e);
@@ -40,6 +102,45 @@ async function initApp() {
     } else {
         showAuthView();
     }
+}
+
+async function loadTenantDirectory(banksList = null) {
+    document.getElementById("tenant-directory").classList.remove("hidden");
+    document.getElementById("auth-section").classList.add("hidden");
+    document.getElementById("user-dashboard").classList.add("hidden");
+    document.getElementById("btn-exit-portal").classList.add("hidden");
+    document.getElementById("nav-logo").innerHTML = `Nex<span>Bid</span>`;
+    document.title = `NexBid - Portals`;
+    
+    const grid = document.getElementById("banks-grid");
+    try {
+        const banks = banksList || await (async () => {
+            const response = await fetch(`${API_BASE}/banks`);
+            if (!response.ok) throw new Error("Could not load banks");
+            return await response.json();
+        })();
+        
+        if (banks.length === 0) {
+            grid.innerHTML = `<div class="empty-state">No private portals active at this time.</div>`;
+            return;
+        }
+        grid.innerHTML = banks.map(b => `
+            <div class="bank-portal-card" onclick="enterPortal('${escapeHTML(b.username)}')">
+                <h3>${escapeHTML(b.username)}</h3>
+                <span class="badge">Private Portal</span>
+            </div>
+        `).join('');
+    } catch (err) {
+        grid.innerHTML = `<div class="empty-state">Error loading portals: ${escapeHTML(err.message)}</div>`;
+    }
+}
+
+function enterPortal(bankName) {
+    window.location.href = `/?bank=${bankName}`;
+}
+
+function exitPortal() {
+    window.location.href = "/";
 }
 
 // ----------------- AUTHENTICATION -----------------
@@ -63,14 +164,14 @@ function switchAuthTab(tab) {
     document.getElementById("auth-error").classList.add("hidden");
 }
 
-function fillCredentials(username, password) {
-    document.getElementById("login-username").value = username;
+function fillCredentials(email, password) {
+    document.getElementById("login-email").value = email;
     document.getElementById("login-password").value = password;
 }
 
 async function handleLogin(e) {
     e.preventDefault();
-    const username = document.getElementById("login-username").value;
+    const email = document.getElementById("login-email").value;
     const password = document.getElementById("login-password").value;
     const errorEl = document.getElementById("auth-error");
     errorEl.classList.add("hidden");
@@ -79,7 +180,7 @@ async function handleLogin(e) {
         const response = await fetch(`${API_BASE}/users/login`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ username, password })
+            body: JSON.stringify({ email, password, tenant_username: selectedBank })
         });
 
         if (!response.ok) {
@@ -97,8 +198,13 @@ async function handleLogin(e) {
         if (!profileResp.ok) throw new Error("Could not retrieve profile");
         
         const tempUser = await profileResp.json();
-        if (tempUser.role !== "user") {
-            throw new Error("Admin accounts must log in via the Admin Portal.");
+        if (tempUser.role === "admin" || tempUser.role === "bank") {
+            localStorage.setItem("token_admin", tempToken);
+            showToast("Redirecting to Listing Console...", "success");
+            setTimeout(() => {
+                window.location.href = "/admin.html";
+            }, 1000);
+            return;
         }
 
         token = tempToken;
@@ -170,17 +276,18 @@ async function handleRegister(e) {
     e.preventDefault();
     const username = document.getElementById("reg-username").value;
     const email = document.getElementById("reg-email").value;
-    const otp = document.getElementById("reg-otp").value;
     const mobile_number = document.getElementById("reg-mobile").value;
     const password = document.getElementById("reg-password").value;
     const errorEl = document.getElementById("auth-error");
     errorEl.classList.add("hidden");
 
+    const role = document.getElementById("reg-role").value;
+
     try {
         const response = await fetch(`${API_BASE}/users/register`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ username, email, password, mobile_number, otp, role: "user" })
+            body: JSON.stringify({ username, email, password, mobile_number, role, tenant_username: selectedBank })
         });
 
         if (!response.ok) {
@@ -192,7 +299,7 @@ async function handleRegister(e) {
         const loginResponse = await fetch(`${API_BASE}/users/login`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ username, password })
+            body: JSON.stringify({ email, password, tenant_username: selectedBank })
         });
         
         const loginData = await loginResponse.json();
@@ -200,6 +307,15 @@ async function handleRegister(e) {
         localStorage.setItem("token", token);
 
         await fetchUserProfile();
+        if (currentUser.role === "admin" || currentUser.role === "bank") {
+            localStorage.setItem("token_admin", token);
+            localStorage.removeItem("token");
+            showToast("Account created. Redirecting to Console...", "success");
+            setTimeout(() => {
+                window.location.href = "/admin.html";
+            }, 1000);
+            return;
+        }
         loadDashboard();
         showToast("Account created successfully", "success");
     } catch (err) {
@@ -239,7 +355,7 @@ function loadDashboard() {
     
     // Update navbar profile
     document.getElementById("nav-role").textContent = currentUser.role;
-    document.getElementById("nav-role").classList.remove("admin");
+    document.getElementById("nav-role").className = `role-badge ${currentUser.role}`;
     document.getElementById("nav-username").textContent = currentUser.username;
     document.getElementById("user-profile").classList.remove("hidden");
 
@@ -254,7 +370,7 @@ function loadDashboard() {
 
 async function loadUserAuctions() {
     try {
-        const response = await fetch(`${API_BASE}/auctions`, {
+        const response = await fetch(`${API_BASE}/auctions?bank=${selectedBank}`, {
             headers: { "Authorization": `Bearer ${token}` }
         });
         if (response.ok) {
@@ -328,6 +444,9 @@ function renderUserAuctions() {
                         </span>
                     </div>
                     <p class="auc-desc">${escapeHTML(auc.description || 'No description provided')}</p>
+                    <div class="auc-bank-label" style="font-size: 0.8rem; color: var(--text-muted); margin-top: 6px; display: flex; align-items: center; gap: 4px;">
+                        <span>Listed by:</span> <span class="role-badge bank" style="font-size: 0.65rem; padding: 2px 8px; text-transform: none; font-weight: 500;">${escapeHTML(auc.bank_username || 'System')}</span>
+                    </div>
                 </div>
                 <div>
                     <div class="auc-pricing">

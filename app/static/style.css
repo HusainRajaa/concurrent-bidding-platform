@@ -123,6 +123,12 @@ h1, h2, h3, .logo {
     color: #b45309;
 }
 
+.role-badge.bank {
+    background: #f3e8ff;
+    border-color: #e9d5ff;
+    color: #6b21a8;
+}
+
 .user-name {
     font-weight: 500;
     color: var(--text-muted);
@@ -1047,5 +1053,50 @@ input:focus, textarea:focus, select:focus {
         grid-template-columns: 1fr;
         gap: 20px;
     }
+}
+
+.banks-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: 20px;
+    margin-top: 25px;
+}
+
+.bank-portal-card {
+    background: rgba(255, 255, 255, 0.45);
+    border: 1px solid var(--card-border);
+    border-radius: 12px;
+    padding: 24px 20px;
+    text-align: center;
+    cursor: pointer;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    box-shadow: var(--shadow-sm);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+}
+
+.bank-portal-card:hover {
+    transform: translateY(-5px);
+    background: rgba(255, 255, 255, 0.7);
+    border-color: var(--accent);
+    box-shadow: var(--shadow-lg);
+}
+
+.bank-portal-card h3 {
+    font-family: 'Outfit', sans-serif;
+    font-size: 1.3rem;
+    color: var(--text-main);
+    margin-bottom: 8px;
+}
+
+.bank-portal-card .badge {
+    display: inline-block;
+    background: #f3e8ff;
+    border: 1px solid #e9d5ff;
+    color: #6b21a8;
+    font-size: 0.75rem;
+    font-weight: 600;
+    padding: 4px 10px;
+    border-radius: 12px;
 }
 

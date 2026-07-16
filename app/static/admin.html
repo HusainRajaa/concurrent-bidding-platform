@@ -40,8 +40,8 @@
             <!-- Login Form -->
             <form id="login-form" onsubmit="handleLogin(event)" class="auth-form">
                 <div class="form-group">
-                    <label for="login-username">Administrator Username</label>
-                    <input type="text" id="login-username" required placeholder="e.g. admin">
+                    <label for="login-email">Email Address</label>
+                    <input type="email" id="login-email" required placeholder="e.g. admin@nexbid.com">
                 </div>
                 <div class="form-group">
                     <label for="login-password">Password</label>
@@ -50,9 +50,10 @@
                 <button type="submit" class="btn btn-primary btn-block">Authenticate Console</button>
                 
                 <div class="quick-credentials">
-                    <p>Demo Admin Credentials:</p>
+                    <p>Demo Console Credentials:</p>
                     <div class="credential-tags">
-                        <span onclick="fillCredentials('admin', 'admin123')">Admin: admin / admin123</span>
+                        <span onclick="fillCredentials('admin@nexbid.com', 'admin123')">Admin: admin@nexbid.com / admin123</span>
+                        <span onclick="fillCredentials('bank1@nexbid.com', 'bank1234')">Bank: bank1@nexbid.com / bank1234</span>
                     </div>
                 </div>
             </form>
