@@ -399,7 +399,7 @@ async def register(
             raise HTTPException(status_code=400, detail="OTP verification code is required")
         redis_key = f"otp:email:{user_in.email}"
         cached_otp = await redis_client.get(redis_key)
-        if not cached_otp or cached_otp.decode("utf-8") != user_in.otp:
+        if not cached_otp or cached_otp != user_in.otp:
             raise HTTPException(status_code=400, detail="Invalid or expired OTP verification code")
         await redis_client.delete(redis_key)
 
@@ -841,7 +841,7 @@ async def register_bank(
             raise HTTPException(status_code=400, detail="OTP verification code is required")
         redis_key = f"otp:email:{bank_in.email}"
         cached_otp = await redis_client.get(redis_key)
-        if not cached_otp or cached_otp.decode("utf-8") != bank_in.otp:
+        if not cached_otp or cached_otp != bank_in.otp:
             raise HTTPException(status_code=400, detail="Invalid or expired OTP verification code")
         await redis_client.delete(redis_key)
 
