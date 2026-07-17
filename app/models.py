@@ -9,7 +9,7 @@ class User(Base):
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
     username: Mapped[str] = mapped_column(String(100), unique=True, index=True, nullable=False)
-    email: Mapped[str] = mapped_column(String(100), unique=True, index=True, nullable=False)
+    email: Mapped[str] = mapped_column(String(100), unique=False, index=True, nullable=False)
     hashed_password: Mapped[str] = mapped_column(String(200), nullable=False)
     role: Mapped[str] = mapped_column(String(20), default="user", nullable=False)  # "user", "bank" or "admin"
     mobile_number: Mapped[str | None] = mapped_column(String(50), nullable=True)

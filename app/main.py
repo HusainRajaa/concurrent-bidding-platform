@@ -408,9 +408,9 @@ async def register(
     if result.scalar_one_or_none():
         raise HTTPException(status_code=400, detail="Username already registered")
         
-    result = await db.execute(select(models.User).where(models.User.email == user_in.email))
-    if result.scalar_one_or_none():
-        raise HTTPException(status_code=400, detail="Email already registered")
+    # result = await db.execute(select(models.User).where(models.User.email == user_in.email))
+    # if result.scalar_one_or_none():
+    #     raise HTTPException(status_code=400, detail="Email already registered")
         
     # 2. Bidders register globally (role="user")
     role = user_in.role or "user"
@@ -441,8 +441,9 @@ async def login(user_in: schemas.UserLogin, db: AsyncSession = Depends(get_db)):
         select(models.User)
         .options(selectinload(models.User.tenant))
         .where(models.User.email == user_in.email)
+        .order_by(models.User.id.desc())
     )
-    user = result.scalar_one_or_none()
+    user = result.scalars().first()
     if not user or not verify_password(user_in.password, user.hashed_password):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -789,8 +790,8 @@ async def google_callback(code: str, db: AsyncSession = Depends(get_db)):
         raise HTTPException(status_code=400, detail="Google did not return a valid email address.")
         
     # Check if user already exists in PostgreSQL database
-    result = await db.execute(select(models.User).where(models.User.email == email))
-    user = result.scalar_one_or_none()
+    result = await db.execute(select(models.User).where(models.User.email == email).order_by(models.User.id.desc()))
+    user = result.scalars().first()
     
     if not user:
         # Create a new user account with default values
@@ -850,9 +851,9 @@ async def register_bank(
     if result.scalar_one_or_none():
         raise HTTPException(status_code=400, detail="Bank identifier code already registered")
         
-    result = await db.execute(select(models.User).where(models.User.email == bank_in.email))
-    if result.scalar_one_or_none():
-        raise HTTPException(status_code=400, detail="Bank email already registered")
+    # result = await db.execute(select(models.User).where(models.User.email == bank_in.email))
+    # if result.scalar_one_or_none():
+    #     raise HTTPException(status_code=400, detail="Bank email already registered")
         
     # 2. Create Bank User
     new_bank = models.User(
