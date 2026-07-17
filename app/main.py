@@ -248,6 +248,129 @@ OTP Code: {otp}
 """
     logger.info(mock_log)
 
+def send_welcome_email(email_to: str, username: str, fullname: Optional[str] = None):
+    subject = "Welcome to NexBid Platform!"
+    name = fullname or username
+    body = f"""
+    Welcome to NexBid, {name}!
+    
+    Your account has been successfully created.
+    
+    You can now log in to the portal and request bidding access to our partner banks.
+    
+    Username: {username}
+    Email Address: {email_to}
+    
+    If you have any questions, feel free to contact us.
+    """
+    
+    # Try sending via Resend API first if configured
+    if settings.RESEND_API_KEY:
+        try:
+            logger.info(f"Attempting to send welcome email via Resend API to {email_to}...")
+            res = httpx.post(
+                "https://api.resend.com/emails",
+                headers={
+                    "Authorization": f"Bearer {settings.RESEND_API_KEY}",
+                    "Content-Type": "application/json"
+                },
+                json={
+                    "from": "NexBid <onboarding@resend.dev>",
+                    "to": [email_to],
+                    "subject": subject,
+                    "html": f"""
+                    <h3>Welcome to NexBid!</h3>
+                    <p>Hello <strong>{name}</strong>,</p>
+                    <p>Thank you for signing up on the <strong>NexBid Bidding Platform</strong>. Your registration is successful!</p>
+                    <p>You can now log in to the portal and request bidding access to our partner banks.</p>
+                    <p><strong>Username:</strong> {username}<br><strong>Email:</strong> {email_to}</p>
+                    """
+                },
+                timeout=10.0
+            )
+            if res.status_code in (200, 201):
+                logger.info(f"Successfully sent welcome email via Resend to {email_to}.")
+                return
+            else:
+                logger.error(f"Resend API returned status {res.status_code} for welcome email: {res.text}")
+        except Exception as err:
+            logger.error(f"Failed to send welcome email via Resend API to {email_to}: {err}", exc_info=True)
+
+    # Try sending via Brevo API if configured
+    if settings.BREVO_API_KEY and settings.BREVO_SENDER_EMAIL:
+        try:
+            logger.info(f"Attempting to send welcome email via Brevo API to {email_to}...")
+            res = httpx.post(
+                "https://api.brevo.com/v3/smtp/email",
+                headers={
+                    "api-key": settings.BREVO_API_KEY,
+                    "Content-Type": "application/json"
+                },
+                json={
+                    "sender": {"name": "NexBid Platform", "email": settings.BREVO_SENDER_EMAIL},
+                    "to": [{"email": email_to, "name": name}],
+                    "subject": subject,
+                    "htmlContent": f"""
+                    <html>
+                        <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333333; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #dddddd; border-radius: 8px;">
+                            <h2 style="color: #1e3a8a; text-align: center; border-bottom: 2px solid #1e3a8a; padding-bottom: 10px;">Welcome to NexBid!</h2>
+                            <p>Hello <strong>{name}</strong>,</p>
+                            <p>Thank you for signing up on the <strong>NexBid Bidding Platform</strong>. Your registration is successful!</p>
+                            <p>You can now log in to the portal and request bidding access to our partner banks.</p>
+                            <div style="background-color: #f3f4f6; padding: 15px; border-radius: 6px; margin: 20px 0;">
+                                <p style="margin: 0;"><strong>Username:</strong> {username}</p>
+                                <p style="margin: 0;"><strong>Email Address:</strong> {email_to}</p>
+                            </div>
+                            <p>Please secure your password and do not share it with anyone.</p>
+                            <p style="text-align: center; margin-top: 30px;">
+                                <a href="http://localhost:8000" style="background-color: #1e3a8a; color: #ffffff; text-decoration: none; padding: 12px 24px; border-radius: 4px; font-weight: bold; display: inline-block;">Get Started</a>
+                            </p>
+                            <hr style="border: 0; border-top: 1px solid #dddddd; margin: 30px 0;">
+                            <p style="font-size: 0.8rem; color: #666666; text-align: center;">This is an automated message, please do not reply directly to this email.</p>
+                        </body>
+                    </html>
+                    """
+                },
+                timeout=10.0
+            )
+            if res.status_code in (200, 201):
+                logger.info(f"Successfully sent welcome email via Brevo to {email_to}.")
+                return
+            else:
+                logger.error(f"Brevo API returned status {res.status_code} for welcome email: {res.text}")
+        except Exception as err:
+            logger.error(f"Failed to send welcome email via Brevo API to {email_to}: {err}", exc_info=True)
+
+    # Fallback to SMTP if SMTP is configured
+    if settings.SMTP_USERNAME and settings.SMTP_PASSWORD:
+        try:
+            msg = MIMEMultipart()
+            msg['From'] = settings.SMTP_FROM
+            msg['To'] = email_to
+            msg['Subject'] = subject
+            msg.attach(MIMEText(body, 'plain'))
+            
+            with smtplib.SMTP(settings.SMTP_HOST, settings.SMTP_PORT) as server:
+                server.starttls()
+                server.login(settings.SMTP_USERNAME, settings.SMTP_PASSWORD)
+                server.sendmail(settings.SMTP_FROM, email_to, msg.as_string())
+            logger.info(f"Successfully sent welcome email via SMTP to {email_to}")
+            return
+        except Exception as e:
+            logger.error(f"Failed to send welcome email via SMTP to {email_to}: {e}", exc_info=True)
+
+    # Fallback to Mock Log if neither is configured
+    mock_log = f"""
+============================================================
+[MOCK MAIL SENDER] Welcome Email Sent
+To: {email_to}
+Subject: {subject}
+Username: {username}
+(Note: Resend, Brevo API Keys, or SMTP credentials are not configured. This is logged here for local testing.)
+============================================================
+"""
+    logger.info(mock_log)
+
 @app.post("/users/request-otp")
 async def request_otp(otp_req: schemas.OTPRequest, background_tasks: BackgroundTasks):
     email = otp_req.email
@@ -265,7 +388,11 @@ async def request_otp(otp_req: schemas.OTPRequest, background_tasks: BackgroundT
     return {"status": "success", "message": "OTP verification code has been sent to your email."}
 
 @app.post("/users/register", response_model=schemas.UserResponse, status_code=status.HTTP_201_CREATED)
-async def register(user_in: schemas.UserCreate, db: AsyncSession = Depends(get_db)):
+async def register(
+    user_in: schemas.UserCreate,
+    background_tasks: BackgroundTasks,
+    db: AsyncSession = Depends(get_db)
+):
     # 1. Check duplicates
     result = await db.execute(select(models.User).where(models.User.username == user_in.username))
     if result.scalar_one_or_none():
@@ -292,6 +419,9 @@ async def register(user_in: schemas.UserCreate, db: AsyncSession = Depends(get_d
     db.add(new_user)
     await db.commit()
     await db.refresh(new_user)
+    
+    # Send welcome email in background
+    background_tasks.add_task(send_welcome_email, new_user.email, new_user.username, new_user.fullname)
     
     return new_user
 
@@ -690,7 +820,11 @@ async def google_callback(code: str, db: AsyncSession = Depends(get_db)):
 # ----------------- BANK SPECIFIC PORTAL ROUTERS & ACCESS CONTROLS -----------------
 
 @app.post("/banks/register", response_model=schemas.UserResponse, status_code=status.HTTP_201_CREATED)
-async def register_bank(bank_in: schemas.BankCreate, db: AsyncSession = Depends(get_db)):
+async def register_bank(
+    bank_in: schemas.BankCreate,
+    background_tasks: BackgroundTasks,
+    db: AsyncSession = Depends(get_db)
+):
     # 1. Check duplicates
     result = await db.execute(select(models.User).where(models.User.username == bank_in.username))
     if result.scalar_one_or_none():
@@ -714,6 +848,10 @@ async def register_bank(bank_in: schemas.BankCreate, db: AsyncSession = Depends(
     db.add(new_bank)
     await db.commit()
     await db.refresh(new_bank)
+    
+    # Send welcome email in background
+    background_tasks.add_task(send_welcome_email, new_bank.email, new_bank.username, new_bank.fullname)
+    
     return new_bank
 
 @app.post("/banks/{bank_id}/request-access", status_code=status.HTTP_201_CREATED)
