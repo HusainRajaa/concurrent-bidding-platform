@@ -2,7 +2,7 @@ import json
 import logging
 import asyncio
 import jwt
-from typing import List, Optional
+from typing import List, Optional, Dict
 from fastapi import WebSocket, WebSocketDisconnect, Query
 
 from app.config import settings
@@ -12,33 +12,61 @@ logger = logging.getLogger(__name__)
 
 class ConnectionManager:
     def __init__(self):
-        self.active_connections: List[WebSocket] = []
+        self.active_connections: Dict[WebSocket, dict] = {}
         self._listener_task: Optional[asyncio.Task] = None
         self.is_running = False
 
-    async def connect(self, websocket: WebSocket):
+    async def connect(self, websocket: WebSocket, user_payload: dict):
         await websocket.accept()
-        self.active_connections.append(websocket)
+        self.active_connections[websocket] = user_payload
         logger.info(f"New WebSocket connection accepted. Total active: {len(self.active_connections)}")
 
     def disconnect(self, websocket: WebSocket):
         if websocket in self.active_connections:
-            self.active_connections.remove(websocket)
+            del self.active_connections[websocket]
             logger.info(f"WebSocket disconnected. Total active: {len(self.active_connections)}")
 
     async def send_personal_message(self, message: str, websocket: WebSocket):
         await websocket.send_text(message)
 
     async def broadcast(self, message: str):
-        connections = list(self.active_connections)
-        logger.info(f"Broadcasting update to {len(connections)} clients: {message}")
-        for connection in connections:
-            try:
-                await connection.send_text(message)
-                logger.info("Sent WebSocket packet successfully.")
-            except Exception as e:
-                logger.error(f"Failed to send message to connection: {e}")
-                self.disconnect(connection)
+        # Parse update event to extract target bank_id
+        try:
+            data = json.loads(message)
+            msg_bank_id = data.get("bank_id")
+        except Exception as e:
+            logger.error(f"Error parsing broadcast message: {e}")
+            msg_bank_id = None
+
+        connections = list(self.active_connections.items())
+        logger.info(f"Broadcasting update (bank_id: {msg_bank_id}) to eligible clients among {len(connections)} active connections.")
+        
+        for websocket, user_payload in connections:
+            if msg_bank_id is None:
+                try:
+                    await websocket.send_text(message)
+                except Exception as e:
+                    logger.error(f"Failed to send personal message: {e}")
+                    self.disconnect(websocket)
+                continue
+
+            role = user_payload.get("role")
+            user_id = user_payload.get("user_id")
+            tenant_id = user_payload.get("tenant_id")
+
+            # Check authorization to receive this bank's real-time events
+            is_authorized = (
+                role == "admin"
+                or (role == "bank" and user_id == msg_bank_id)
+                or (role == "user" and tenant_id == msg_bank_id)
+            )
+
+            if is_authorized:
+                try:
+                    await websocket.send_text(message)
+                except Exception as e:
+                    logger.error(f"Failed to send personal message: {e}")
+                    self.disconnect(websocket)
 
     async def start_redis_listener(self):
         """Starts the background task listening to Redis Pub/Sub updates."""

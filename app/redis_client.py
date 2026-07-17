@@ -54,7 +54,8 @@ async def sync_auction_to_redis(auction: models.Auction):
         "title": auction.title,
         "current_price": str(auction.current_price),
         "highest_bidder_id": str(auction.highest_bidder_id) if auction.highest_bidder_id else "",
-        "end_time": end_time_iso
+        "end_time": end_time_iso,
+        "bank_id": str(auction.bank_id)
     })
 
 async def sync_active_auctions_to_redis(db: AsyncSession):
@@ -132,7 +133,8 @@ async def place_bid_in_redis(db: AsyncSession, auction_id: int, user_id: int, am
             "auction_id": auction_id,
             "user_id": user_id,
             "amount": amount,
-            "timestamp": timestamp
+            "timestamp": timestamp,
+            "bank_id": int(auction_data.get("bank_id") or 0)
         }
         await redis_client.rpush("bids:queue", json.dumps(bid_payload))
         

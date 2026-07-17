@@ -328,7 +328,7 @@ async def login(user_in: schemas.UserLogin, db: AsyncSession = Depends(get_db)):
             )
             
     access_token = create_access_token(
-        data={"sub": user.username, "role": user.role, "user_id": user.id}
+        data={"sub": user.username, "role": user.role, "user_id": user.id, "tenant_id": user.tenant_id}
     )
     return {"access_token": access_token, "token_type": "bearer"}
 
@@ -399,7 +399,10 @@ async def get_auction(auction_id: int, db: AsyncSession = Depends(get_db)):
     return auction
 
 @app.get("/auctions/bids/recent", response_model=List[schemas.BidHistoryResponse])
-async def get_recent_bids(db: AsyncSession = Depends(get_db)):
+async def get_recent_bids(
+    db: AsyncSession = Depends(get_db),
+    current_user: models.User = Depends(get_current_user)
+):
     stmt = (
         select(
             models.Bid.id,
@@ -414,9 +417,15 @@ async def get_recent_bids(db: AsyncSession = Depends(get_db)):
         .join(models.User, models.Bid.user_id == models.User.id)
         .join(models.Auction, models.Bid.auction_id == models.Auction.id)
         .where(models.Bid.status == "success")
-        .order_by(models.Bid.timestamp.desc())
-        .limit(20)
     )
+    
+    # Enforce tenant isolation on recent bids list
+    if current_user.role == "user":
+        stmt = stmt.where(models.Auction.bank_id == current_user.tenant_id)
+    elif current_user.role == "bank":
+        stmt = stmt.where(models.Auction.bank_id == current_user.id)
+        
+    stmt = stmt.order_by(models.Bid.timestamp.desc()).limit(20)
     result = await db.execute(stmt)
     
     bids = []
@@ -522,7 +531,7 @@ async def websocket_endpoint(websocket: WebSocket):
     if not user_payload:
         return # Websocket closed in helper
         
-    await manager.connect(websocket)
+    await manager.connect(websocket, user_payload)
     
     try:
         # Keep connection open. We don't expect messages from client
@@ -639,7 +648,7 @@ async def google_callback(code: str, db: AsyncSession = Depends(get_db)):
         
     # Issue our signed access token
     access_token = create_access_token(
-        data={"sub": user.username, "role": user.role, "user_id": user.id}
+        data={"sub": user.username, "role": user.role, "user_id": user.id, "tenant_id": user.tenant_id}
     )
     
     # Redirect back to the frontend, passing the token in the URL query parameter

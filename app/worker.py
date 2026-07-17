@@ -193,7 +193,8 @@ class BidsConsumer:
                     "auction_title": auction.title,
                     "highest_bidder_id": auction.highest_bidder_id,
                     "username": username,
-                    "price": auction.current_price if username else auction.start_price
+                    "price": auction.current_price if username else auction.start_price,
+                    "bank_id": auction.bank_id
                 }
                 logger.info(f"Publishing auction end broadcast to Redis Pub/Sub: auction:{auction.id}:updates")
                 await redis_client.publish(
