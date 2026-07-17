@@ -363,6 +363,7 @@ async function fetchBidsHistory() {
 
 function renderRecentBids(list) {
     const ledger = document.getElementById("ledger-stream");
+    if (!ledger) return;
     if (list.length === 0) {
         ledger.innerHTML = `<div class="ledger-placeholder">Ledger is active. Live trades will stream here...</div>`;
         return;
@@ -626,6 +627,7 @@ function handleIncomingWSBid(data) {
     }
 
     const ledger = document.getElementById("ledger-stream");
+    if (!ledger) return;
     const placeholder = ledger.querySelector(".ledger-placeholder");
     if (placeholder) placeholder.remove();
 
@@ -683,6 +685,7 @@ function handleAuctionEndedWS(data) {
     
     // Append announcement log to activity ledger
     const ledger = document.getElementById("ledger-stream");
+    if (!ledger) return;
     const placeholder = ledger.querySelector(".ledger-placeholder");
     if (placeholder) placeholder.remove();
     
