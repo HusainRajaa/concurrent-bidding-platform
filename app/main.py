@@ -823,7 +823,10 @@ async def list_bank_requests(
             models.User.address.label("bidder_address")
         )
         .join(models.User, models.BankAccessRequest.user_id == models.User.id)
-        .where(models.BankAccessRequest.bank_id == current_user.id)
+        .where(
+            models.BankAccessRequest.bank_id == current_user.id,
+            models.BankAccessRequest.status == "pending"
+        )
         .order_by(models.BankAccessRequest.timestamp.desc())
     )
     
