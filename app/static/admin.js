@@ -142,7 +142,9 @@ function renderAdminAuctions(list) {
     }
     
     container.innerHTML = list.map(auc => {
-        const isEnded = new Date(auc.end_time) <= new Date();
+        const endStr = auc.end_time;
+        const cleanEndStr = (endStr.endsWith("Z") || endStr.includes("+")) ? endStr : endStr + "Z";
+        const isEnded = new Date(cleanEndStr) <= new Date();
         return `
             <div class="admin-auc-row" id="auc-row-${auc.id}">
                 <div>

@@ -286,7 +286,9 @@ function renderListings(listings) {
 
     let html = "";
     listings.forEach(auction => {
-        const end = new Date(auction.end_time).toLocaleTimeString();
+        const endStr = auction.end_time;
+        const cleanEndStr = (endStr.endsWith("Z") || endStr.includes("+")) ? endStr : endStr + "Z";
+        const end = new Date(cleanEndStr).toLocaleTimeString();
         html += `
             <div class="ledger-item" style="display:block; padding: 15px; margin-bottom: 10px;">
                 <div style="display:flex; justify-content:space-between; align-items:center;">
