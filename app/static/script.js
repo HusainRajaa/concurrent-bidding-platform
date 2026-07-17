@@ -379,7 +379,7 @@ function renderRecentBids(list) {
         ledgerItem.innerHTML = `
             <span class="time">${time}</span>
             <div class="message">
-                Bidder <span>${escapeHTML(bid.username)}</span> placed bid of <span class="amount">$${formatMoney(bid.amount)}</span> on Asset <span>"${escapeHTML(bid.auction_title)}"</span>
+                Bidder <span>${escapeHTML(bid.username)}</span> placed bid of <span class="amount">₹${formatMoney(bid.amount)}</span> on Asset <span>"${escapeHTML(bid.auction_title)}"</span>
             </div>
         `;
         ledger.appendChild(ledgerItem);
@@ -416,7 +416,7 @@ function renderUserAuctions() {
                         <div>
                             <span class="label">Current Bid</span>
                             <div class="auc-price-val" id="price-${auc.id}">
-                                $${formatMoney(auc.current_price)}
+                                ₹${formatMoney(auc.current_price)}
                             </div>
                             <div class="highest-bidder-label">
                                 Bidder ID: <span id="bidder-${auc.id}">${auc.highest_bidder_id || 'None'}</span>
@@ -599,7 +599,7 @@ function handleIncomingWSBid(data) {
     const inputEl = document.getElementById(`bid-input-${auction_id}`);
 
     if (priceEl) {
-        priceEl.textContent = `$${formatMoney(amount)}`;
+        priceEl.textContent = `₹${formatMoney(amount)}`;
         priceEl.classList.add("pulse");
         setTimeout(() => priceEl.classList.remove("pulse"), 500);
     }
@@ -614,7 +614,7 @@ function handleIncomingWSBid(data) {
         const detailInputEl = document.getElementById("bid-amount-input");
 
         if (detailPriceEl) {
-            detailPriceEl.textContent = `$${formatMoney(amount)}`;
+            detailPriceEl.textContent = `₹${formatMoney(amount)}`;
             detailPriceEl.classList.add("pulse");
             setTimeout(() => detailPriceEl.classList.remove("pulse"), 500);
         }
@@ -635,7 +635,7 @@ function handleIncomingWSBid(data) {
     ledgerItem.innerHTML = `
         <span class="time">${time}</span>
         <div class="message">
-            Bidder <span>#${user_id}</span> placed bid of <span class="amount">$${amount.toLocaleString()}</span> on Asset <span>"${escapeHTML(auction.title)}"</span>
+            Bidder <span>#${user_id}</span> placed bid of <span class="amount">₹${amount.toLocaleString()}</span> on Asset <span>"${escapeHTML(auction.title)}"</span>
         </div>
     `;
 
@@ -696,7 +696,7 @@ function handleAuctionEndedWS(data) {
         ledgerItem.innerHTML = `
             <span class="time">${time}</span>
             <div class="message" style="font-weight: 600; color: #991b1b;">
-                SOLD: Asset <span>"${escapeHTML(auction_title)}"</span> won by Bidder <span>"${escapeHTML(username)}"</span> (ID: #${highest_bidder_id}) for <span class="amount">$${formatMoney(price)}</span>!
+                SOLD: Asset <span>"${escapeHTML(auction_title)}"</span> won by Bidder <span>"${escapeHTML(username)}"</span> (ID: #${highest_bidder_id}) for <span class="amount">₹${formatMoney(price)}</span>!
             </div>
         `;
     } else {
@@ -726,8 +726,8 @@ async function openAuctionDetail(auctionId) {
     // Set text elements
     document.getElementById("detail-title").textContent = auction.title;
     document.getElementById("detail-desc").textContent = auction.description || 'No description provided';
-    document.getElementById("detail-start-price").textContent = `$${formatMoney(auction.start_price)}`;
-    document.getElementById("detail-current-price").textContent = `$${formatMoney(auction.current_price)}`;
+    document.getElementById("detail-start-price").textContent = `₹${formatMoney(auction.start_price)}`;
+    document.getElementById("detail-current-price").textContent = `₹${formatMoney(auction.current_price)}`;
     document.getElementById("detail-bidder-id").textContent = auction.highest_bidder_id || 'None';
 
     // Set input placeholder
@@ -805,7 +805,7 @@ function renderAuctionBidHistory(list) {
                     <span style="font-size:0.75rem; opacity:0.5;">${time}</span>
                 </div>
                 <div style="text-align:right;">
-                    <div style="font-weight:600; font-size:1.05rem;">$${formatMoney(bid.amount)}</div>
+                    <div style="font-weight:600; font-size:1.05rem;">₹${formatMoney(bid.amount)}</div>
                     <span style="font-size:0.75rem; ${badgeStyle}">${bid.status.toUpperCase()}</span>
                 </div>
             </div>
@@ -919,7 +919,7 @@ function formatMoney(amount) {
 function getMinBidPlaceholder(amount) {
     const minBid = amount + 0.01;
     if (minBid >= 1e15) {
-        return `Min: $${minBid.toExponential(4)}`;
+        return `Min: ₹${minBid.toExponential(4)}`;
     }
-    return `Min: $${minBid.toFixed(2)}`;
+    return `Min: ₹${minBid.toFixed(2)}`;
 }

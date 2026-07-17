@@ -178,13 +178,13 @@
                     <div class="detail-pricing-grid">
                         <div class="detail-info-block">
                             <span class="label">Starting Price</span>
-                            <div id="detail-start-price" class="detail-val">$0.00</div>
+                            <div id="detail-start-price" class="detail-val">₹0.00</div>
                         </div>
                         <div class="detail-info-block">
                             <span class="label">Current Price</span>
-                            <div id="detail-current-price" class="detail-val highlight">$0.00</div>
+                            <div id="detail-current-price" class="detail-val highlight">₹0.00</div>
                             <div class="highest-bidder-label">
-                                <span id="detail-highest-bidder">No bids placed yet</span>
+                                Bidder ID: <span id="detail-bidder-id">None</span>
                             </div>
                         </div>
                     </div>
@@ -192,9 +192,9 @@
                     <!-- Place Bid Panel -->
                     <div class="bid-panel">
                         <h3>Submit Bidding Order</h3>
-                        <form onsubmit="handlePlaceBid(event)">
+                        <form onsubmit="handlePlaceDetailBid(event)">
                             <div class="bid-input-container">
-                                <span class="currency-symbol">$</span>
+                                <span class="currency-symbol">₹</span>
                                 <input type="number" step="0.01" id="bid-amount-input" required placeholder="0.00">
                                 <button type="submit" class="btn btn-primary">Place Bid</button>
                             </div>

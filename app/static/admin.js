@@ -157,7 +157,7 @@ function renderAdminAuctions(list) {
                     </div>
                 </div>
                 <div class="admin-auc-meta">
-                    <div class="price">$${formatMoney(auc.current_price)}</div>
+                    <div class="price">₹${formatMoney(auc.current_price)}</div>
                     <p>Version ID: ${auc.version_id}</p>
                 </div>
             </div>

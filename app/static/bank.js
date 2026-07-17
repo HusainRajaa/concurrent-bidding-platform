@@ -295,7 +295,7 @@ function renderListings(listings) {
                 </div>
                 <div style="display:flex; justify-content:space-between; align-items:center; margin-top:8px;">
                     <span style="opacity:0.7;">Current Price:</span>
-                    <strong style="color:var(--neon-green); font-size:1.1rem;">$${auction.current_price.toLocaleString()}</strong>
+                    <strong style="color:var(--neon-green); font-size:1.1rem;">₹${auction.current_price.toLocaleString()}</strong>
                 </div>
             </div>
         `;
@@ -331,7 +331,7 @@ function renderTrades(trades) {
             <div class="ledger-item">
                 <span class="ledger-time">[${time}]</span>
                 <span class="ledger-user">${trade.username}</span> bid 
-                <span class="ledger-amount">$${trade.amount.toLocaleString()}</span> on 
+                <span class="ledger-amount">₹${trade.amount.toLocaleString()}</span> on 
                 <span class="ledger-auction">${trade.auction_title}</span>
             </div>
         `;

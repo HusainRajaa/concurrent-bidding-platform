@@ -177,7 +177,7 @@ class BidsConsumer:
                 
                 # 3. Log to stdout/console
                 if username:
-                    sold_log = f"Auction '{auction.title}' (ID: {auction.id}) ended. Sold to Bidder '{username}' (ID: {auction.highest_bidder_id}) for ${auction.current_price:,.2f}."
+                    sold_log = f"Auction '{auction.title}' (ID: {auction.id}) ended. Sold to Bidder '{username}' (ID: {auction.highest_bidder_id}) for ₹{auction.current_price:,.2f}."
                 else:
                     sold_log = f"Auction '{auction.title}' (ID: {auction.id}) ended. No bids received."
                 
