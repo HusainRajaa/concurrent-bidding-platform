@@ -14,7 +14,11 @@ from app import models
 logger = logging.getLogger(__name__)
 
 # Initialize Redis client
-redis_client = aioredis.from_url(settings.REDIS_URL, decode_responses=True)
+redis_client = aioredis.from_url(
+    settings.REDIS_URL,
+    decode_responses=True,
+    health_check_interval=30
+)
 
 # LUA Script to release lock atomically
 RELEASE_LOCK_LUA = """

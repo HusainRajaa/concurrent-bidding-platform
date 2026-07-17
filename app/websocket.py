@@ -2,6 +2,7 @@ import json
 import logging
 import asyncio
 import jwt
+import redis
 from typing import List, Optional, Dict
 from fastapi import WebSocket, WebSocketDisconnect, Query
 
@@ -118,6 +119,10 @@ class ConnectionManager:
                         await self.broadcast(data)
             except asyncio.CancelledError:
                 break
+            except (asyncio.TimeoutError, redis.exceptions.TimeoutError):
+                # Normal idle timeout when no messages have been sent for a while
+                logger.debug("Redis Pub/Sub connection idle. Re-subscribing silently...")
+                continue
             except Exception as e:
                 logger.error(f"Error in Redis Pub/Sub listener loop: {e}. Reconnecting in 3 seconds...", exc_info=True)
                 await asyncio.sleep(3)
