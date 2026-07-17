@@ -3,6 +3,7 @@ import random
 import smtplib
 import httpx
 import uuid
+import json
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from contextlib import asynccontextmanager
@@ -740,6 +741,22 @@ async def request_bank_access(
             existing.status = "pending"
             existing.timestamp = datetime.utcnow()
             await db.commit()
+            
+            # Publish re-submission update
+            access_payload = {
+                "type": "access_request",
+                "bank_id": bank_id,
+                "user_id": current_user.id,
+                "username": current_user.username,
+                "fullname": current_user.fullname,
+                "email": current_user.email,
+                "mobile_number": current_user.mobile_number,
+                "address": current_user.address,
+                "request_id": existing.id,
+                "timestamp": existing.timestamp.isoformat() + "Z"
+            }
+            await redis_client.publish("auction:access:updates", json.dumps(access_payload))
+            
             return {"status": "success", "message": "Access request re-submitted.", "request_id": existing.id}
         return {"status": "success", "message": "Access request already submitted.", "request_id": existing.id, "approval_status": existing.status}
         
@@ -752,6 +769,22 @@ async def request_bank_access(
     db.add(req)
     await db.commit()
     await db.refresh(req)
+    
+    # Publish submission update
+    access_payload = {
+        "type": "access_request",
+        "bank_id": bank_id,
+        "user_id": current_user.id,
+        "username": current_user.username,
+        "fullname": current_user.fullname,
+        "email": current_user.email,
+        "mobile_number": current_user.mobile_number,
+        "address": current_user.address,
+        "request_id": req.id,
+        "timestamp": req.timestamp.isoformat() + "Z"
+    }
+    await redis_client.publish("auction:access:updates", json.dumps(access_payload))
+    
     return {"status": "success", "message": "Access request submitted successfully.", "request_id": req.id}
 
 @app.get("/banks/{bank_id}/access-status")
@@ -829,6 +862,17 @@ async def approve_access_request(
         
     req.status = "allowed"
     await db.commit()
+
+    # Publish approval event
+    approval_payload = {
+        "type": "access_approved",
+        "bank_id": current_user.id,
+        "bank_name": current_user.fullname or current_user.username,
+        "user_id": req.user_id,
+        "status": "allowed"
+    }
+    await redis_client.publish("auction:access:updates", json.dumps(approval_payload))
+    
     return {"status": "success", "message": "Bidding access approved."}
 
 @app.post("/banks/requests/{request_id}/disallow")
@@ -850,6 +894,17 @@ async def disallow_access_request(
         
     req.status = "disallowed"
     await db.commit()
+
+    # Publish declined event
+    declined_payload = {
+        "type": "access_declined",
+        "bank_id": current_user.id,
+        "bank_name": current_user.fullname or current_user.username,
+        "user_id": req.user_id,
+        "status": "disallowed"
+    }
+    await redis_client.publish("auction:access:updates", json.dumps(declined_payload))
+    
     return {"status": "success", "message": "Bidding access disallowed."}
 
 # ----------------- PAGE ROUTERS -----------------

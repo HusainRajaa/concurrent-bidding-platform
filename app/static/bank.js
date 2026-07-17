@@ -355,9 +355,17 @@ function connectWebSocket(token) {
     socket.onmessage = (event) => {
         try {
             const data = JSON.parse(event.data);
+            const activeToken = localStorage.getItem("token_bank");
+
+            if (data.type === "access_request") {
+                showToast(`New bidding access request from ${data.fullname || data.username}!`, "warning");
+                if (activeToken) {
+                    fetchRequests(activeToken);
+                }
+                return;
+            }
             
             // Reload listings and trade history if any changes occur
-            const activeToken = localStorage.getItem("token_bank");
             if (activeToken) {
                 fetchActiveListings(activeToken);
                 fetchTradeHistory(activeToken);
@@ -374,6 +382,39 @@ function connectWebSocket(token) {
             if (activeToken) connectWebSocket(activeToken);
         }, 3000);
     };
+}
+
+function showToast(message, type = "success") {
+    const container = document.getElementById("toast-container");
+    if (!container) return;
+    const toast = document.createElement("div");
+    toast.className = `toast toast-${type}`;
+    
+    let icon = "✓";
+    if (type === "error") icon = "✗";
+    if (type === "warning") icon = "⚠";
+
+    toast.innerHTML = `<span>${icon}</span> <span>${message}</span>`;
+    container.appendChild(toast);
+
+    setTimeout(() => {
+        toast.style.opacity = "0";
+        toast.style.transform = "translateY(20px) scale(0.9)";
+        setTimeout(() => toast.remove(), 300);
+    }, 4000);
+}
+
+function escapeHTML(str) {
+    if (!str) return '';
+    return str.replace(/[&<>'"]/g, 
+        tag => ({
+            '&': '&amp;',
+            '<': '&lt;',
+            '>': '&gt;',
+            "'": '&#39;',
+            '"': '&quot;'
+        }[tag] || tag)
+    );
 }
 
 function logout() {

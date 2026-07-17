@@ -30,16 +30,18 @@ class ConnectionManager:
         await websocket.send_text(message)
 
     async def broadcast(self, message: str):
-        # Parse update event to extract target bank_id
+        # Parse update event to extract target bank_id and message type
         try:
             data = json.loads(message)
             msg_bank_id = data.get("bank_id")
+            msg_type = data.get("type")
         except Exception as e:
             logger.error(f"Error parsing broadcast message: {e}")
             msg_bank_id = None
+            msg_type = None
 
         connections = list(self.active_connections.items())
-        logger.info(f"Broadcasting update (bank_id: {msg_bank_id}) to eligible clients among {len(connections)} active connections.")
+        logger.info(f"Broadcasting update (bank_id: {msg_bank_id}, type: {msg_type}) to eligible clients among {len(connections)} active connections.")
         
         for websocket, user_payload in connections:
             if msg_bank_id is None:
@@ -52,14 +54,28 @@ class ConnectionManager:
 
             role = user_payload.get("role")
             user_id = user_payload.get("user_id")
-            tenant_id = user_payload.get("tenant_id")
+            allowed_bank_ids = user_payload.get("allowed_bank_ids", [])
 
-            # Check authorization to receive this bank's real-time events
-            is_authorized = (
-                role == "admin"
-                or (role == "bank" and user_id == msg_bank_id)
-                or (role == "user" and tenant_id == msg_bank_id)
-            )
+            # Check authorization to receive this real-time event based on message type
+            if msg_type == "access_request":
+                # Only target bank or admins receive access requests
+                is_authorized = (role == "admin") or (role == "bank" and user_id == msg_bank_id)
+            elif msg_type in ("access_approved", "access_declined"):
+                # Only the requesting user or admins receive approval notifications
+                target_user_id = data.get("user_id")
+                is_authorized = (role == "admin") or (role == "user" and user_id == target_user_id)
+                
+                # Dynamically append allowed bank ID cache for bidder session upon approval
+                if is_authorized and msg_type == "access_approved" and role == "user":
+                    if msg_bank_id not in allowed_bank_ids:
+                        allowed_bank_ids.append(msg_bank_id)
+            else:
+                # Regular bid updates or auction ended signals
+                is_authorized = (
+                    role == "admin"
+                    or (role == "bank" and user_id == msg_bank_id)
+                    or (role == "user" and msg_bank_id in allowed_bank_ids)
+                )
 
             if is_authorized:
                 try:

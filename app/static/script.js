@@ -48,6 +48,9 @@ async function initApp() {
 
         // Show Bank Portal Selection Directory
         loadTenantDirectory();
+        
+        // Connect WebSocket for real-time notifications
+        connectWebSocket();
     } catch (e) {
         console.error("Token expired or invalid", e);
         logout();
@@ -64,12 +67,6 @@ async function loadTenantDirectory() {
     
     document.getElementById("nav-logo").innerHTML = `Nex<span>Bid</span>`;
     document.title = `NexBid - Portals`;
-
-    // Disconnect any active WS
-    if (ws) {
-        ws.close();
-        ws = null;
-    }
     
     const grid = document.getElementById("banks-grid");
     try {
@@ -326,8 +323,10 @@ async function loadDashboard() {
     await fetchAuctions();
     await fetchBidsHistory();
     
-    // Connect WebSockets
-    connectWebSocket();
+    // Ensure we are connected to WebSocket
+    if (!ws || ws.readyState !== WebSocket.OPEN) {
+        connectWebSocket();
+    }
 
     // Start client-side timer refreshes
     if (countdownInterval) clearInterval(countdownInterval);
@@ -531,8 +530,8 @@ function connectWebSocket() {
     ws = new WebSocket(wsUrl);
 
     ws.onopen = () => {
-        dot.className = "status-dot connected";
-        statusText.textContent = "Live Stream Connected";
+        if (dot) dot.className = "status-dot connected";
+        if (statusText) statusText.textContent = "Live Stream Connected";
         wsReconnectDelay = 1000;
     };
 
@@ -546,11 +545,11 @@ function connectWebSocket() {
     };
 
     ws.onclose = () => {
-        dot.className = "status-dot disconnected";
-        statusText.textContent = "Reconnecting...";
+        if (dot) dot.className = "status-dot disconnected";
+        if (statusText) statusText.textContent = "Reconnecting...";
         
         setTimeout(() => {
-            if (token && currentUser && currentUser.role === "user" && selectedBank) {
+            if (token && currentUser && currentUser.role === "user") {
                 connectWebSocket();
                 wsReconnectDelay = Math.min(wsReconnectDelay * 2, 30000);
             }
@@ -564,6 +563,21 @@ function connectWebSocket() {
 }
 
 function handleIncomingWSBid(data) {
+    if (data.type === "access_approved") {
+        showToast(`Access to ${data.bank_name} approved!`, "success");
+        if (selectedBank && data.bank_id === selectedBank.id) {
+            loadDashboard();
+        }
+        return;
+    }
+    if (data.type === "access_declined") {
+        showToast(`Access to ${data.bank_name} declined.`, "error");
+        if (selectedBank && data.bank_id === selectedBank.id) {
+            checkPortalAccess(selectedBank);
+        }
+        return;
+    }
+
     if (data.type === "auction_ended") {
         handleAuctionEndedWS(data);
         return;
