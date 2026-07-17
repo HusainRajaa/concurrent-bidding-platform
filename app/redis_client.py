@@ -13,14 +13,12 @@ from app import models
 
 logger = logging.getLogger(__name__)
 
-# Initialize Redis client
 redis_client = aioredis.from_url(
     settings.REDIS_URL,
     decode_responses=True,
     health_check_interval=30
 )
 
-# LUA Script to release lock atomically
 RELEASE_LOCK_LUA = """
 if redis.call("get", KEYS[1]) == ARGV[1] then
     return redis.call("del", KEYS[1])
@@ -30,9 +28,7 @@ end
 """
 
 async def acquire_lock(lock_key: str, token: str, timeout_ms: int = 2000, max_retries: int = 5, retry_delay_ms: int = 50) -> bool:
-    """Acquires a distributed lock on a resource with retries."""
     for _ in range(max_retries):
-        # SET with NX and PX (expires in milliseconds)
         success = await redis_client.set(lock_key, token, nx=True, px=timeout_ms)
         if success:
             return True
@@ -40,7 +36,6 @@ async def acquire_lock(lock_key: str, token: str, timeout_ms: int = 2000, max_re
     return False
 
 async def release_lock(lock_key: str, token: str) -> bool:
-    """Releases a distributed lock atomically using Lua scripting."""
     try:
         result = await redis_client.eval(RELEASE_LOCK_LUA, 1, lock_key, token)
         return bool(result)
@@ -49,7 +44,6 @@ async def release_lock(lock_key: str, token: str) -> bool:
         return False
 
 async def sync_auction_to_redis(auction: models.Auction):
-    """Syncs an individual auction's core state to Redis."""
     auction_id = auction.id
     end_time_iso = auction.end_time.replace(tzinfo=timezone.utc).isoformat() if auction.end_time.tzinfo else auction.end_time.isoformat() + "Z"
     
@@ -63,9 +57,8 @@ async def sync_auction_to_redis(auction: models.Auction):
     })
 
 async def sync_active_auctions_to_redis(db: AsyncSession):
-    """Loads all active/upcoming auctions from PostgreSQL to Redis on system startup."""
     try:
-        now = datetime.now(timezone.utc).replace(tzinfo=None) # DB uses naive timestamps representing UTC
+        now = datetime.now(timezone.utc).replace(tzinfo=None)
         result = await db.execute(
             select(models.Auction).where(models.Auction.end_time > now)
         )
@@ -77,32 +70,21 @@ async def sync_active_auctions_to_redis(db: AsyncSession):
         logger.error(f"Error syncing active auctions to Redis: {e}")
 
 async def place_bid_in_redis(db: AsyncSession, auction_id: int, user_id: int, amount: float) -> Tuple[bool, str]:
-    """
-    Validates and registers a bid in Redis (fast-write path).
-    Enforces concurrency limits using Redis distributed locks.
-    Pushes valid bids to the persistence queue and broadcasts updates.
-    """
     lock_key = f"lock:auction:{auction_id}"
     token = str(uuid.uuid4())
     
-    # 1. Check if auction exists in Redis cache
     auction_exists = await redis_client.exists(f"auction:{auction_id}")
     if not auction_exists:
-        # Fallback to DB query
         result = await db.execute(select(models.Auction).where(models.Auction.id == auction_id))
         auction = result.scalar_one_or_none()
         if not auction:
             return False, "Auction not found"
-        # Cache it
         await sync_auction_to_redis(auction)
     
-    # Get details from Redis
     auction_data = await redis_client.hgetall(f"auction:{auction_id}")
     end_time_str = auction_data.get("end_time")
     
-    # Check end time
     try:
-        # Strip trailing Z if present for ISO parsing in older Python versions, or use fromisoformat
         clean_end_time_str = end_time_str[:-1] + "+00:00" if end_time_str.endswith("Z") else end_time_str
         end_time = datetime.fromisoformat(clean_end_time_str)
         if datetime.now(timezone.utc) > end_time:
@@ -111,20 +93,16 @@ async def place_bid_in_redis(db: AsyncSession, auction_id: int, user_id: int, am
         logger.error(f"Error parsing auction end time {end_time_str}: {e}")
         return False, "Auction details invalid"
 
-    # 2. Acquire lock to perform atomic update
     lock_acquired = await acquire_lock(lock_key, token, timeout_ms=2000)
     if not lock_acquired:
         return False, "Server is busy processing bids for this auction. Please retry."
         
     try:
-        # Get latest price inside lock
         current_price = float(await redis_client.hget(f"auction:{auction_id}", "current_price") or 0.0)
         
-        # 3. Validate bid amount
         if amount <= current_price:
             return False, "Bid amount must be strictly higher than current price"
             
-        # 4. Update state in Redis
         timestamp = datetime.now(timezone.utc).isoformat()
         
         await redis_client.hset(f"auction:{auction_id}", mapping={
@@ -132,7 +110,6 @@ async def place_bid_in_redis(db: AsyncSession, auction_id: int, user_id: int, am
             "highest_bidder_id": str(user_id)
         })
         
-        # 5. Push to background queue for DB persistence
         bid_payload = {
             "auction_id": auction_id,
             "user_id": user_id,
@@ -142,7 +119,6 @@ async def place_bid_in_redis(db: AsyncSession, auction_id: int, user_id: int, am
         }
         await redis_client.rpush("bids:queue", json.dumps(bid_payload))
         
-        # 6. Publish real-time update event
         logger.info(f"Publishing bid update to Redis Pub/Sub: auction:{auction_id}:updates -> {bid_payload}")
         await redis_client.publish(
             f"auction:{auction_id}:updates",
@@ -151,5 +127,4 @@ async def place_bid_in_redis(db: AsyncSession, auction_id: int, user_id: int, am
         
         return True, "Bid accepted"
     finally:
-        # 7. Release lock
         await release_lock(lock_key, token)
