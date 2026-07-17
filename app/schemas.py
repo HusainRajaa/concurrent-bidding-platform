@@ -106,6 +106,7 @@ class BankCreate(BaseModel):
     fullname: str = Field(..., min_length=1, max_length=100)
     address: str = Field(..., min_length=1, max_length=200)
     branch: str = Field(..., min_length=1, max_length=100)
+    otp: Optional[str] = Field(None, min_length=6, max_length=6)
 
 
 class AccessRequestDetail(BaseModel):

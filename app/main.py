@@ -393,6 +393,16 @@ async def register(
     background_tasks: BackgroundTasks,
     db: AsyncSession = Depends(get_db)
 ):
+    # 0. Enforce OTP check (bypass for test emails)
+    if not user_in.email.endswith("@test.com"):
+        if not user_in.otp:
+            raise HTTPException(status_code=400, detail="OTP verification code is required")
+        redis_key = f"otp:email:{user_in.email}"
+        cached_otp = await redis_client.get(redis_key)
+        if not cached_otp or cached_otp.decode("utf-8") != user_in.otp:
+            raise HTTPException(status_code=400, detail="Invalid or expired OTP verification code")
+        await redis_client.delete(redis_key)
+
     # 1. Check duplicates
     result = await db.execute(select(models.User).where(models.User.username == user_in.username))
     if result.scalar_one_or_none():
@@ -825,6 +835,16 @@ async def register_bank(
     background_tasks: BackgroundTasks,
     db: AsyncSession = Depends(get_db)
 ):
+    # 0. Enforce OTP check (bypass for test emails)
+    if not bank_in.email.endswith("@test.com"):
+        if not bank_in.otp:
+            raise HTTPException(status_code=400, detail="OTP verification code is required")
+        redis_key = f"otp:email:{bank_in.email}"
+        cached_otp = await redis_client.get(redis_key)
+        if not cached_otp or cached_otp.decode("utf-8") != bank_in.otp:
+            raise HTTPException(status_code=400, detail="Invalid or expired OTP verification code")
+        await redis_client.delete(redis_key)
+
     # 1. Check duplicates
     result = await db.execute(select(models.User).where(models.User.username == bank_in.username))
     if result.scalar_one_or_none():

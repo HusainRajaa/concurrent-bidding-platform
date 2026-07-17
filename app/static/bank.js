@@ -87,6 +87,8 @@ async function handleRegister(event) {
     const mobile_number = document.getElementById("reg-mobile").value;
     const address = document.getElementById("reg-address").value;
     const password = document.getElementById("reg-password").value;
+    const otpInput = document.getElementById("reg-otp");
+    const otp = otpInput ? otpInput.value.trim() : null;
     const authError = document.getElementById("auth-error");
 
     try {
@@ -100,7 +102,8 @@ async function handleRegister(event) {
                 branch,
                 mobile_number,
                 address,
-                password
+                password,
+                otp
             })
         });
 
@@ -423,4 +426,66 @@ function logout() {
     localStorage.removeItem("token_bank");
     if (socket) socket.close();
     location.reload();
+}
+
+async function sendOTP(role) {
+    const emailInput = document.getElementById("reg-email");
+    const sendBtn = document.getElementById("btn-send-otp");
+    const otpContainer = document.getElementById("otp-container");
+    const otpInput = document.getElementById("reg-otp");
+    const errorEl = document.getElementById("auth-error");
+
+    const email = emailInput.value.trim();
+    if (!email) {
+        showToast("Please enter a valid email address first.", "error");
+        return;
+    }
+
+    sendBtn.disabled = true;
+    sendBtn.textContent = "Sending...";
+    if (errorEl) errorEl.classList.add("hidden");
+
+    try {
+        const response = await fetch("/users/request-otp", {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json"
+            },
+            body: JSON.stringify({ email })
+        });
+
+        const data = await response.json();
+        if (!response.ok) {
+            throw new Error(data.detail || "Failed to send OTP verification code.");
+        }
+
+        showToast("OTP sent to your email! Please check inbox.", "success");
+        
+        // Show OTP field
+        otpContainer.classList.remove("hidden");
+        otpInput.required = true;
+        
+        // Countdown timer on send button
+        let seconds = 30;
+        sendBtn.textContent = `Resend in ${seconds}s`;
+        const interval = setInterval(() => {
+            seconds--;
+            if (seconds <= 0) {
+                clearInterval(interval);
+                sendBtn.disabled = false;
+                sendBtn.textContent = "Send OTP";
+            } else {
+                sendBtn.textContent = `Resend in ${seconds}s`;
+            }
+        }, 1000);
+
+    } catch (err) {
+        showToast(err.message, "error");
+        if (errorEl) {
+            errorEl.textContent = err.message;
+            errorEl.classList.remove("hidden");
+        }
+        sendBtn.disabled = false;
+        sendBtn.textContent = "Send OTP";
+    }
 }

@@ -77,7 +77,7 @@ async def test_simple_flow():
         
         # Test onboarding a new bank
         new_bank_username = f"bank_{int(time.time())}"
-        new_bank_email = f"{new_bank_username}@nexbid.com"
+        new_bank_email = f"{new_bank_username}@test.com"
         
         onboard_resp = await client.post("/users/register", json={
             "username": new_bank_username,

@@ -74,7 +74,14 @@
                 </div>
                 <div class="form-group">
                     <label for="reg-email">Gmail Address</label>
-                    <input type="email" id="reg-email" required placeholder="email@gmail.com">
+                    <div style="display: flex; gap: 10px;">
+                        <input type="email" id="reg-email" required placeholder="email@gmail.com" style="flex: 1;">
+                        <button type="button" id="btn-send-otp" class="btn btn-secondary" style="font-size: 0.85rem; padding: 0 15px;" onclick="sendOTP('bank')">Send OTP</button>
+                    </div>
+                </div>
+                <div class="form-group hidden" id="otp-container">
+                    <label for="reg-otp">OTP Verification Code</label>
+                    <input type="text" id="reg-otp" placeholder="Enter 6-digit code">
                 </div>
                 <div class="form-group">
                     <label for="reg-branch">Branch</label>
