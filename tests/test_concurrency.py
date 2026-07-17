@@ -45,6 +45,19 @@ async def test_simple_flow():
         bank_login = await client.post("/users/login", json={"email": "bank1@nexbid.com", "password": "bank1234"})
         bank_token = bank_login.json()["access_token"]
         
+        # Get bank1 ID
+        bank_profile_resp = await client.get("/users/me", headers={"Authorization": f"Bearer {bank_token}"})
+        bank_id = bank_profile_resp.json()["id"]
+        
+        # Bidder requests access to bank
+        req_resp = await client.post(f"/banks/{bank_id}/request-access", headers=headers)
+        print("Request Access status:", req_resp.status_code, req_resp.text)
+        request_id = req_resp.json()["request_id"]
+        
+        # Bank approves bidder request
+        approve_resp = await client.post(f"/banks/requests/{request_id}/approve", headers={"Authorization": f"Bearer {bank_token}"})
+        print("Approve Access status:", approve_resp.status_code, approve_resp.text)
+        
         # Create auction
         auction_resp = await client.post("/auctions", json={
             "title": "Gold Bullion", "description": "Gold bars", "start_price": 5000.0, "duration_minutes": 5

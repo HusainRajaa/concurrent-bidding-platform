@@ -11,6 +11,8 @@ class UserCreate(BaseModel):
     otp: Optional[str] = Field(None, min_length=6, max_length=6)
     role: Optional[str] = Field("user", pattern="^(user|bank|admin)$")
     tenant_username: Optional[str] = None
+    fullname: Optional[str] = None
+    address: Optional[str] = None
 
 class UserLogin(BaseModel):
     email: EmailStr
@@ -25,6 +27,9 @@ class UserResponse(BaseModel):
     mobile_number: Optional[str] = None
     tenant_id: Optional[int] = None
     tenant_username: Optional[str] = None
+    fullname: Optional[str] = None
+    address: Optional[str] = None
+    branch: Optional[str] = None
 
     class Config:
         from_attributes = True
@@ -88,6 +93,31 @@ class BidHistoryResponse(BaseModel):
     status: str
     username: str
     auction_title: str
+
+    class Config:
+        from_attributes = True
+
+
+class BankCreate(BaseModel):
+    username: str = Field(..., min_length=3, max_length=100)
+    email: EmailStr
+    password: str = Field(..., min_length=6)
+    mobile_number: str = Field(..., min_length=10, max_length=20)
+    fullname: str = Field(..., min_length=1, max_length=100)
+    address: str = Field(..., min_length=1, max_length=200)
+    branch: str = Field(..., min_length=1, max_length=100)
+
+
+class AccessRequestDetail(BaseModel):
+    id: int
+    user_id: int
+    bank_id: int
+    status: str
+    timestamp: datetime
+    bidder_name: str
+    bidder_email: str
+    bidder_phone: str
+    bidder_address: str
 
     class Config:
         from_attributes = True

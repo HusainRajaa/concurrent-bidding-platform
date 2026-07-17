@@ -11,11 +11,13 @@ class User(Base):
     username: Mapped[str] = mapped_column(String(100), unique=True, index=True, nullable=False)
     email: Mapped[str] = mapped_column(String(100), unique=True, index=True, nullable=False)
     hashed_password: Mapped[str] = mapped_column(String(200), nullable=False)
-    role: Mapped[str] = mapped_column(String(20), default="user", nullable=False)  # "user" or "admin"
+    role: Mapped[str] = mapped_column(String(20), default="user", nullable=False)  # "user", "bank" or "admin"
     mobile_number: Mapped[str | None] = mapped_column(String(50), nullable=True)
     tenant_id: Mapped[int | None] = mapped_column(Integer, ForeignKey("users.id"), nullable=True)
+    fullname: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    address: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    branch: Mapped[str | None] = mapped_column(String(100), nullable=True)
 
-    
     bids: Mapped[list["Bid"]] = relationship("Bid", back_populates="user", foreign_keys="[Bid.user_id]")
     won_auctions: Mapped[list["Auction"]] = relationship("Auction", back_populates="highest_bidder", foreign_keys="[Auction.highest_bidder_id]")
     tenant: Mapped[Optional["User"]] = relationship("User", remote_side=[id], lazy="selectin")
@@ -75,3 +77,16 @@ class Bid(Base):
     # Relationships
     auction: Mapped[Auction] = relationship("Auction", back_populates="bids")
     user: Mapped[User] = relationship("User", back_populates="bids", foreign_keys=[user_id])
+
+
+class BankAccessRequest(Base):
+    __tablename__ = "bank_access_requests"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    user_id: Mapped[int] = mapped_column(Integer, ForeignKey("users.id"), nullable=False)
+    bank_id: Mapped[int] = mapped_column(Integer, ForeignKey("users.id"), nullable=False)
+    status: Mapped[str] = mapped_column(String(20), default="pending", nullable=False) # "pending", "allowed", "disallowed"
+    timestamp: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
+
+    user: Mapped["User"] = relationship("User", foreign_keys=[user_id])
+    bank: Mapped["User"] = relationship("User", foreign_keys=[bank_id])

@@ -5,15 +5,13 @@ let auctions = [];
 let countdownInterval = null;
 let wsReconnectDelay = 1000;
 let activeDetailAuctionId = null;
-
+let selectedBank = null; // Stored as the selected bank object
 
 const API_BASE = window.location.origin;
 
 document.addEventListener("DOMContentLoaded", () => {
     initApp();
 });
-
-let selectedBank = null;
 
 async function initApp() {
     // Check for OAuth redirect token in URL
@@ -22,112 +20,73 @@ async function initApp() {
     if (urlToken) {
         token = urlToken;
         localStorage.setItem("token", token);
-        // Clean URL state
         window.history.replaceState({}, document.title, window.location.pathname);
     }
 
-    selectedBank = urlParams.get("bank") || null;
-
-    if (selectedBank) {
-        try {
-            const response = await fetch(`${API_BASE}/banks`);
-            if (!response.ok) throw new Error("Failed to verify bank portal.");
-            const banks = await response.json();
-            const bankExists = banks.some(b => b.username === selectedBank);
-            
-            if (!bankExists) {
-                showToast(`Private portal '${selectedBank}' does not exist.`, "error");
-                selectedBank = null;
-                window.history.replaceState({}, document.title, window.location.pathname);
-                loadTenantDirectory(banks);
-                return;
-            }
-        } catch (err) {
-            console.error(err);
-            showToast("Failed to verify bank portal.", "error");
-            loadTenantDirectory();
-            return;
-        }
-    }
-
-    if (!selectedBank) {
-        loadTenantDirectory();
+    if (!token) {
+        showAuthView();
         return;
     }
 
-    // Set portal branding details
-    document.getElementById("btn-exit-portal").classList.remove("hidden");
-    document.getElementById("nav-logo").innerHTML = `Nex<span>Bid</span> - ${escapeHTML(selectedBank)}`;
-    document.title = `NexBid - ${escapeHTML(selectedBank)} Portal`;
-
-    // Only give option for the buyer, not for the seller when a bank portal is selected
-    const regRoleSelect = document.getElementById("reg-role");
-    if (regRoleSelect) {
-        const bankOption = regRoleSelect.querySelector('option[value="bank"]');
-        if (bankOption) {
-            bankOption.remove();
-        }
-        regRoleSelect.value = "user";
-    }
-
-    if (token) {
-        try {
-            await fetchUserProfile();
-            if (currentUser.role !== "user") {
-                if (currentUser.role === "admin" || currentUser.role === "bank") {
-                    localStorage.setItem("token_admin", token);
-                    localStorage.removeItem("token");
-                    window.location.href = "/admin.html";
-                    return;
-                }
-                showToast("Console accounts must log in via the Console Portal", "error");
-                logout();
+    try {
+        await fetchUserProfile();
+        if (currentUser.role !== "user") {
+            if (currentUser.role === "admin" || currentUser.role === "bank") {
+                localStorage.setItem("token_bank", token);
+                localStorage.removeItem("token");
+                window.location.href = "/bank";
                 return;
             }
-            
-            // Enforce tenant match
-            if (currentUser.tenant_username !== selectedBank) {
-                showToast(`This session belongs to the ${currentUser.tenant_username} portal. Redirecting...`, "warning");
-                setTimeout(() => {
-                    window.location.href = `/?bank=${currentUser.tenant_username}`;
-                }, 1500);
-                return;
-            }
-            
-            loadDashboard();
-        } catch (e) {
-            console.error("Token expired or invalid", e);
             logout();
+            return;
         }
-    } else {
-        showAuthView();
+
+        // Render user details in navbar
+        document.getElementById("user-profile").classList.remove("hidden");
+        document.getElementById("nav-username").innerText = currentUser.fullname || currentUser.username;
+        document.getElementById("nav-role").innerText = "BIDDER";
+
+        // Show Bank Portal Selection Directory
+        loadTenantDirectory();
+    } catch (e) {
+        console.error("Token expired or invalid", e);
+        logout();
     }
 }
 
-async function loadTenantDirectory(banksList = null) {
-    document.getElementById("tenant-directory").classList.remove("hidden");
+async function loadTenantDirectory() {
+    // Hide auth section, dashboard, and access status section
     document.getElementById("auth-section").classList.add("hidden");
     document.getElementById("user-dashboard").classList.add("hidden");
+    document.getElementById("access-status-section").classList.add("hidden");
     document.getElementById("btn-exit-portal").classList.add("hidden");
+    document.getElementById("tenant-directory").classList.remove("hidden");
+    
     document.getElementById("nav-logo").innerHTML = `Nex<span>Bid</span>`;
     document.title = `NexBid - Portals`;
+
+    // Disconnect any active WS
+    if (ws) {
+        ws.close();
+        ws = null;
+    }
     
     const grid = document.getElementById("banks-grid");
     try {
-        const banks = banksList || await (async () => {
-            const response = await fetch(`${API_BASE}/banks`);
-            if (!response.ok) throw new Error("Could not load banks");
-            return await response.json();
-        })();
+        const response = await fetch(`${API_BASE}/banks`);
+        if (!response.ok) throw new Error("Could not load banks");
+        const banks = await response.json();
         
         if (banks.length === 0) {
             grid.innerHTML = `<div class="empty-state">No private portals active at this time.</div>`;
             return;
         }
+        
         grid.innerHTML = banks.map(b => `
-            <div class="bank-portal-card" onclick="enterPortal('${escapeHTML(b.username)}')">
-                <h3>${escapeHTML(b.username)}</h3>
-                <span class="badge">Private Portal</span>
+            <div class="bank-portal-card" onclick="checkPortalAccess(${JSON.stringify(b).replace(/"/g, '&quot;')})">
+                <h3>${escapeHTML(b.fullname || b.username)}</h3>
+                <span class="badge" style="background: var(--blue-accent); font-size: 0.75rem;">${escapeHTML(b.branch || 'Branch')}</span>
+                <p style="font-size:0.8rem; opacity:0.7; margin-top:8px;">${escapeHTML(b.address || 'Address')}</p>
             </div>
         `).join('');
     } catch (err) {
@@ -135,12 +94,76 @@ async function loadTenantDirectory(banksList = null) {
     }
 }
 
-function enterPortal(bankName) {
-    window.location.href = `/?bank=${bankName}`;
+async function checkPortalAccess(bankObj) {
+    selectedBank = bankObj;
+    
+    // Show select bank back button
+    document.getElementById("btn-exit-portal").classList.remove("hidden");
+    document.getElementById("nav-logo").innerHTML = `Nex<span>Bid</span> - ${escapeHTML(bankObj.fullname || bankObj.username)}`;
+    document.title = `NexBid - ${escapeHTML(bankObj.fullname || bankObj.username)} Portal`;
+    
+    try {
+        const response = await fetch(`${API_BASE}/banks/${bankObj.id}/access-status`, {
+            headers: { "Authorization": `Bearer ${token}` }
+        });
+        if (!response.ok) throw new Error("Failed to load access status.");
+        
+        const data = await response.json();
+        const status = data.status; // "none", "pending", "allowed", "disallowed"
+        
+        // Hide directory
+        document.getElementById("tenant-directory").classList.add("hidden");
+        
+        const statusSection = document.getElementById("access-status-section");
+        const titleEl = document.getElementById("access-status-title");
+        const descEl = document.getElementById("access-status-description");
+        const actionContainer = document.getElementById("access-action-container");
+        
+        statusSection.classList.add("hidden");
+        document.getElementById("user-dashboard").classList.add("hidden");
+        
+        if (status === "allowed") {
+            loadDashboard();
+        } else if (status === "pending") {
+            statusSection.classList.remove("hidden");
+            titleEl.innerText = "Access Request Pending";
+            descEl.innerText = `Your request to join ${bankObj.fullname || bankObj.username} is currently awaiting bank partner authorization.`;
+            actionContainer.innerHTML = `<div class="ws-status" style="justify-content:center;"><span class="status-dot disconnected"></span><span>Waiting for Approval...</span></div>`;
+        } else if (status === "disallowed") {
+            statusSection.classList.remove("hidden");
+            titleEl.innerText = "Access Request Declined";
+            descEl.innerText = `Your access request to ${bankObj.fullname || bankObj.username} has been declined. Bidding is restricted.`;
+            actionContainer.innerHTML = `<p style="color:var(--neon-red); font-weight:600; text-transform:uppercase;">Access Denied</p>`;
+        } else {
+            // "none"
+            statusSection.classList.remove("hidden");
+            titleEl.innerText = "Bidding Access Required";
+            descEl.innerText = `You must request access from ${bankObj.fullname || bankObj.username} before you can bid on their listed assets.`;
+            actionContainer.innerHTML = `<button class="btn btn-primary" onclick="requestAccess(${bankObj.id})">Request Access</button>`;
+        }
+    } catch (err) {
+        showToast("Error checking access: " + err.message, "error");
+    }
+}
+
+async function requestAccess(bankId) {
+    try {
+        const response = await fetch(`${API_BASE}/banks/${bankId}/request-access`, {
+            method: "POST",
+            headers: { "Authorization": `Bearer ${token}` }
+        });
+        if (!response.ok) throw new Error("Failed to request access");
+        const data = await response.json();
+        showToast(data.message, "success");
+        checkPortalAccess(selectedBank);
+    } catch (err) {
+        showToast(err.message, "error");
+    }
 }
 
 function exitPortal() {
-    window.location.href = "/";
+    selectedBank = null;
+    loadTenantDirectory();
 }
 
 // ----------------- AUTHENTICATION -----------------
@@ -148,18 +171,19 @@ function exitPortal() {
 function switchAuthTab(tab) {
     const loginForm = document.getElementById("login-form");
     const registerForm = document.getElementById("register-form");
-    const tabs = document.querySelectorAll(".tab-btn");
+    const loginTabBtn = document.getElementById("tab-login");
+    const regTabBtn = document.getElementById("tab-register");
 
     if (tab === "login") {
         loginForm.classList.remove("hidden");
         registerForm.classList.add("hidden");
-        tabs[0].classList.add("active");
-        tabs[1].classList.remove("active");
+        loginTabBtn.classList.add("active");
+        regTabBtn.classList.remove("active");
     } else {
         loginForm.classList.add("hidden");
         registerForm.classList.remove("hidden");
-        tabs[0].classList.remove("active");
-        tabs[1].classList.add("active");
+        loginTabBtn.classList.remove("active");
+        regTabBtn.classList.add("active");
     }
     document.getElementById("auth-error").classList.add("hidden");
 }
@@ -180,7 +204,7 @@ async function handleLogin(e) {
         const response = await fetch(`${API_BASE}/users/login`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ email, password, tenant_username: selectedBank })
+            body: JSON.stringify({ email, password })
         });
 
         if (!response.ok) {
@@ -191,7 +215,7 @@ async function handleLogin(e) {
         const data = await response.json();
         const tempToken = data.access_token;
         
-        // Fetch profile to verify role before saving token
+        // Fetch profile
         const profileResp = await fetch(`${API_BASE}/users/me`, {
             headers: { "Authorization": `Bearer ${tempToken}` }
         });
@@ -199,10 +223,10 @@ async function handleLogin(e) {
         
         const tempUser = await profileResp.json();
         if (tempUser.role === "admin" || tempUser.role === "bank") {
-            localStorage.setItem("token_admin", tempToken);
-            showToast("Redirecting to Listing Console...", "success");
+            localStorage.setItem("token_bank", tempToken);
+            showToast("Redirecting to Bank Console...", "success");
             setTimeout(() => {
-                window.location.href = "/admin.html";
+                window.location.href = "/bank";
             }, 1000);
             return;
         }
@@ -211,7 +235,7 @@ async function handleLogin(e) {
         currentUser = tempUser;
         localStorage.setItem("token", token);
         
-        loadDashboard();
+        initApp();
         showToast("Authenticated successfully", "success");
     } catch (err) {
         errorEl.textContent = err.message;
@@ -219,75 +243,22 @@ async function handleLogin(e) {
     }
 }
 
-async function requestOTP(e) {
-    e.preventDefault();
-    const emailInput = document.getElementById("reg-email");
-    const errorEl = document.getElementById("auth-error");
-    const btnSend = document.getElementById("btn-send-otp");
-    
-    const email = emailInput.value.trim();
-    if (!email) {
-        showToast("Please enter an email address first.", "error");
-        return;
-    }
-    
-    errorEl.classList.add("hidden");
-    btnSend.setAttribute("disabled", "true");
-    btnSend.textContent = "Sending...";
-    
-    try {
-        const response = await fetch(`${API_BASE}/users/request-otp`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ email })
-        });
-        
-        if (!response.ok) {
-            const data = await response.json();
-            throw new Error(data.detail || "Failed to request OTP");
-        }
-        
-        showToast("Verification code sent to your email", "success");
-        
-        // Cooldown timer for button (30 seconds)
-        let cooldown = 30;
-        btnSend.textContent = `Retry in ${cooldown}s`;
-        const timer = setInterval(() => {
-            cooldown--;
-            if (cooldown <= 0) {
-                clearInterval(timer);
-                btnSend.removeAttribute("disabled");
-                btnSend.textContent = "Send OTP";
-            } else {
-                btnSend.textContent = `Retry in ${cooldown}s`;
-            }
-        }, 1000);
-        
-    } catch (err) {
-        errorEl.textContent = err.message;
-        errorEl.classList.remove("hidden");
-        showToast(err.message, "error");
-        btnSend.removeAttribute("disabled");
-        btnSend.textContent = "Send OTP";
-    }
-}
-
 async function handleRegister(e) {
     e.preventDefault();
+    const fullname = document.getElementById("reg-fullname").value;
     const username = document.getElementById("reg-username").value;
     const email = document.getElementById("reg-email").value;
     const mobile_number = document.getElementById("reg-mobile").value;
+    const address = document.getElementById("reg-address").value;
     const password = document.getElementById("reg-password").value;
     const errorEl = document.getElementById("auth-error");
     errorEl.classList.add("hidden");
-
-    const role = document.getElementById("reg-role").value;
 
     try {
         const response = await fetch(`${API_BASE}/users/register`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ username, email, password, mobile_number, role, tenant_username: selectedBank })
+            body: JSON.stringify({ fullname, username, email, password, mobile_number, address, role: "user" })
         });
 
         if (!response.ok) {
@@ -299,24 +270,14 @@ async function handleRegister(e) {
         const loginResponse = await fetch(`${API_BASE}/users/login`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ email, password, tenant_username: selectedBank })
+            body: JSON.stringify({ email, password })
         });
         
         const loginData = await loginResponse.json();
         token = loginData.access_token;
         localStorage.setItem("token", token);
 
-        await fetchUserProfile();
-        if (currentUser.role === "admin" || currentUser.role === "bank") {
-            localStorage.setItem("token_admin", token);
-            localStorage.removeItem("token");
-            showToast("Account created. Redirecting to Console...", "success");
-            setTimeout(() => {
-                window.location.href = "/admin.html";
-            }, 1000);
-            return;
-        }
-        loadDashboard();
+        initApp();
         showToast("Account created successfully", "success");
     } catch (err) {
         errorEl.textContent = err.message;
@@ -334,8 +295,11 @@ async function fetchUserProfile() {
 
 function showAuthView() {
     document.getElementById("auth-section").classList.remove("hidden");
+    document.getElementById("tenant-directory").classList.add("hidden");
     document.getElementById("user-dashboard").classList.add("hidden");
+    document.getElementById("access-status-section").classList.add("hidden");
     document.getElementById("user-profile").classList.add("hidden");
+    document.getElementById("btn-exit-portal").classList.add("hidden");
 }
 
 function logout() {
@@ -348,52 +312,53 @@ function logout() {
     showToast("Signed out", "warning");
 }
 
-// ----------------- DASHBOARD MANAGEMENT -----------------
+// ----------------- USER DASHBOARD & LIVE STREAM -----------------
 
-function loadDashboard() {
-    document.getElementById("auth-section").classList.add("hidden");
-    
-    // Update navbar profile
-    document.getElementById("nav-role").textContent = currentUser.role;
-    document.getElementById("nav-role").className = `role-badge ${currentUser.role}`;
-    document.getElementById("nav-username").textContent = currentUser.username;
-    document.getElementById("user-profile").classList.remove("hidden");
-
-    // Display appropriate dashboard
+async function loadDashboard() {
+    document.getElementById("tenant-directory").classList.add("hidden");
+    document.getElementById("access-status-section").classList.add("hidden");
     document.getElementById("user-dashboard").classList.remove("hidden");
-    loadUserAuctions();
-    loadRecentBids();
+    
+    // Set dashboard title
+    document.getElementById("dashboard-bank-title").innerText = `${selectedBank.fullname || selectedBank.username} Live Bidding Floor`;
+
+    // Fetch active listings and transaction history
+    await fetchAuctions();
+    await fetchBidsHistory();
+    
+    // Connect WebSockets
     connectWebSocket();
+
+    // Start client-side timer refreshes
+    if (countdownInterval) clearInterval(countdownInterval);
+    countdownInterval = setInterval(updateAllTimers, 1000);
 }
 
-// ----------------- USER DASHBOARD & BIDS -----------------
-
-async function loadUserAuctions() {
+async function fetchAuctions() {
     try {
-        const response = await fetch(`${API_BASE}/auctions?bank=${selectedBank}`, {
+        const response = await fetch(`${API_BASE}/auctions?bank=${selectedBank.username}`, {
             headers: { "Authorization": `Bearer ${token}` }
         });
-        if (response.ok) {
-            auctions = await response.json();
-            renderUserAuctions();
-            startCountdownTimers();
+        if (!response.ok) {
+            throw new Error("Failed to load active liquidation rounds.");
         }
-    } catch (e) {
-        console.error("Error loading user auctions", e);
+        auctions = await response.json();
+        renderUserAuctions();
+    } catch (err) {
+        showToast(err.message, "error");
     }
 }
 
-async function loadRecentBids() {
+async function fetchBidsHistory() {
     try {
         const response = await fetch(`${API_BASE}/auctions/bids/recent`, {
             headers: { "Authorization": `Bearer ${token}` }
         });
-        if (response.ok) {
-            const list = await response.json();
-            renderRecentBids(list);
-        }
-    } catch (e) {
-        console.error("Error loading recent bids", e);
+        if (!response.ok) return;
+        const list = await response.json();
+        renderRecentBids(list);
+    } catch (err) {
+        console.error(err);
     }
 }
 
@@ -405,7 +370,6 @@ function renderRecentBids(list) {
     }
     
     ledger.innerHTML = "";
-    
     list.forEach(bid => {
         const timestampStr = bid.timestamp;
         const cleanTimestampStr = (timestampStr.endsWith("Z") || timestampStr.includes("+")) ? timestampStr : timestampStr + "Z";
@@ -426,7 +390,7 @@ function renderRecentBids(list) {
 function renderUserAuctions() {
     const grid = document.getElementById("user-auctions-grid");
     if (auctions.length === 0) {
-        grid.innerHTML = `<div class="empty-state">No active auctions at this time. Wait for administrator to list assets.</div>`;
+        grid.innerHTML = `<div class="empty-state">No active auctions at this time. Wait for partner bank to list assets.</div>`;
         return;
     }
 
@@ -505,62 +469,62 @@ async function handlePlaceBid(e, auctionId) {
     }
 }
 
-function startCountdownTimers() {
-    if (countdownInterval) clearInterval(countdownInterval);
-    
-    countdownInterval = setInterval(() => {
-        const timers = document.querySelectorAll("[id^='timer-']");
-        timers.forEach(timer => {
-            const endTimeStr = timer.getAttribute("data-endtime");
-            const cleanEndTimeStr = (endTimeStr.endsWith("Z") || endTimeStr.includes("+")) ? endTimeStr : endTimeStr + "Z";
-            const endTime = new Date(cleanEndTimeStr);
-            const now = new Date();
-            const diff = endTime - now;
-            
-            const auctionId = timer.id.split('-')[1];
-            
-            if (diff <= 0) {
-                timer.textContent = "Ended";
-                timer.classList.add("ended");
-                const card = document.getElementById(`auc-card-${auctionId}`);
-                if (card) {
-                    const inputs = card.querySelectorAll("input, button");
-                    inputs.forEach(el => el.setAttribute("disabled", "true"));
-                }
-            } else {
-                const hrs = Math.floor(diff / 3600000);
-                const mins = Math.floor((diff % 3600000) / 60000);
-                const secs = Math.floor((diff % 60000) / 1000);
-                
-                timer.textContent = `${hrs.toString().padStart(2, '0')}:${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+function updateAllTimers() {
+    const timers = document.querySelectorAll("[id^='timer-']");
+    timers.forEach(timer => {
+        const endTimeStr = timer.getAttribute("data-endtime");
+        const cleanEndTimeStr = (endTimeStr.endsWith("Z") || endTimeStr.includes("+")) ? endTimeStr : endTimeStr + "Z";
+        const endTime = new Date(cleanEndTimeStr);
+        const now = new Date();
+        const diff = endTime - now;
+        
+        const auctionId = timer.id.split('-')[1];
+        
+        if (diff <= 0) {
+            timer.textContent = "Ended";
+            timer.classList.add("ended");
+            const card = document.getElementById(`auc-card-${auctionId}`);
+            if (card) {
+                const inputs = card.querySelectorAll("input, button");
+                inputs.forEach(el => el.setAttribute("disabled", "true"));
             }
-        });
+        } else {
+            const hrs = Math.floor(diff / 3600000);
+            const mins = Math.floor((diff % 3600000) / 60000);
+            const secs = Math.floor((diff % 60000) / 1000);
+            timer.textContent = `${hrs.toString().padStart(2, '0')}:${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+        }
+    });
 
-        // Also sync the timer in the detailed modal console
-        if (activeDetailAuctionId) {
-            const activeTimer = document.getElementById(`timer-${activeDetailAuctionId}`);
-            const detailTimer = document.getElementById("detail-timer");
-            const detailInput = document.getElementById("detail-bid-input");
-            const detailSubmitBtn = document.querySelector("#detail-bid-form button");
-            
-            if (activeTimer && detailTimer) {
-                detailTimer.textContent = activeTimer.textContent;
-                if (activeTimer.classList.contains("ended")) {
-                    detailTimer.classList.add("ended");
-                    if (detailInput) detailInput.setAttribute("disabled", "true");
-                    if (detailSubmitBtn) detailSubmitBtn.setAttribute("disabled", "true");
-                } else {
-                    detailTimer.classList.remove("ended");
-                }
+    // Detailed Modal timer sync
+    if (activeDetailAuctionId) {
+        const activeTimer = document.getElementById(`timer-${activeDetailAuctionId}`);
+        const detailTimer = document.getElementById("detail-timer");
+        const detailInput = document.getElementById("bid-amount-input");
+        const detailSubmitBtn = document.querySelector(".bid-panel button");
+        
+        if (activeTimer && detailTimer) {
+            detailTimer.textContent = activeTimer.textContent;
+            if (activeTimer.classList.contains("ended")) {
+                detailTimer.classList.add("ended");
+                if (detailInput) detailInput.setAttribute("disabled", "true");
+                if (detailSubmitBtn) detailSubmitBtn.setAttribute("disabled", "true");
+            } else {
+                detailTimer.classList.remove("ended");
+                if (detailInput) detailInput.removeAttribute("disabled");
+                if (detailSubmitBtn) detailSubmitBtn.removeAttribute("disabled");
             }
         }
-    }, 1000);
+    }
 }
 
 // ----------------- WEBSOCKET REAL-TIME SYNC -----------------
 
 function connectWebSocket() {
-    const wsUrl = `ws://${window.location.host}/ws/auctions?token=${token}`;
+    if (ws) ws.close();
+    
+    const wsProtocol = window.location.protocol === "https:" ? "wss:" : "ws:";
+    const wsUrl = `${wsProtocol}//${window.location.host}/ws/auctions?token=${token}`;
     const dot = document.getElementById("ws-dot");
     const statusText = document.getElementById("ws-status-text");
 
@@ -586,7 +550,7 @@ function connectWebSocket() {
         statusText.textContent = "Reconnecting...";
         
         setTimeout(() => {
-            if (token && currentUser && currentUser.role === "user") {
+            if (token && currentUser && currentUser.role === "user" && selectedBank) {
                 connectWebSocket();
                 wsReconnectDelay = Math.min(wsReconnectDelay * 2, 30000);
             }
@@ -606,13 +570,13 @@ function handleIncomingWSBid(data) {
     }
 
     const { auction_id, user_id, amount, timestamp } = data;
-    
     const auction = auctions.find(a => a.id === auction_id);
     if (auction) {
         auction.current_price = amount;
         auction.highest_bidder_id = user_id;
     } else {
-        loadUserAuctions();
+        // If not in cache, trigger reload
+        fetchAuctions();
         return;
     }
 
@@ -633,7 +597,7 @@ function handleIncomingWSBid(data) {
     if (activeDetailAuctionId === auction_id) {
         const detailPriceEl = document.getElementById("detail-current-price");
         const detailBidderEl = document.getElementById("detail-bidder-id");
-        const detailInputEl = document.getElementById("detail-bid-input");
+        const detailInputEl = document.getElementById("bid-amount-input");
 
         if (detailPriceEl) {
             detailPriceEl.textContent = `$${formatMoney(amount)}`;
@@ -691,8 +655,8 @@ function handleAuctionEndedWS(data) {
     // Update detailed modal if open for this ended auction
     if (activeDetailAuctionId === auction_id) {
         const detailTimer = document.getElementById("detail-timer");
-        const detailInput = document.getElementById("detail-bid-input");
-        const detailSubmitBtn = document.querySelector("#detail-bid-form button");
+        const detailInput = document.getElementById("bid-amount-input");
+        const detailSubmitBtn = document.querySelector(".bid-panel button");
         if (detailTimer) {
             detailTimer.textContent = "Ended";
             detailTimer.classList.add("ended");
@@ -700,7 +664,6 @@ function handleAuctionEndedWS(data) {
         if (detailInput) detailInput.setAttribute("disabled", "true");
         if (detailSubmitBtn) detailSubmitBtn.setAttribute("disabled", "true");
         
-        // Reload audit trail to update latest bid statuses to success/failed
         loadAuctionBidHistory(auction_id);
     }
     
@@ -744,7 +707,7 @@ async function openAuctionDetail(auctionId) {
 
     // Reset error message & input
     document.getElementById("detail-bid-error").textContent = "";
-    document.getElementById("detail-bid-input").value = "";
+    document.getElementById("bid-amount-input").value = "";
 
     // Set text elements
     document.getElementById("detail-title").textContent = auction.title;
@@ -754,7 +717,7 @@ async function openAuctionDetail(auctionId) {
     document.getElementById("detail-bidder-id").textContent = auction.highest_bidder_id || 'None';
 
     // Set input placeholder
-    document.getElementById("detail-bid-input").placeholder = getMinBidPlaceholder(auction.current_price);
+    document.getElementById("bid-amount-input").placeholder = getMinBidPlaceholder(auction.current_price);
 
     // Initial check for timer
     const endTimeStr = auction.end_time;
@@ -762,8 +725,8 @@ async function openAuctionDetail(auctionId) {
     const isEnded = new Date(cleanEndTimeStr) <= new Date();
 
     const timerValEl = document.getElementById("detail-timer");
-    const inputEl = document.getElementById("detail-bid-input");
-    const submitBtn = document.querySelector("#detail-bid-form button");
+    const inputEl = document.getElementById("bid-amount-input");
+    const submitBtn = document.querySelector(".bid-panel button");
 
     if (isEnded) {
         timerValEl.textContent = "Ended";
@@ -796,7 +759,6 @@ async function loadAuctionBidHistory(auctionId) {
         });
         if (response.ok) {
             const list = await response.json();
-            // Verify if the active modal hasn't changed while request was in-flight
             if (activeDetailAuctionId === auctionId) {
                 renderAuctionBidHistory(list);
             }
@@ -807,9 +769,9 @@ async function loadAuctionBidHistory(auctionId) {
 }
 
 function renderAuctionBidHistory(list) {
-    const tbody = document.getElementById("detail-history-rows");
+    const tbody = document.getElementById("detail-bids-list");
     if (list.length === 0) {
-        tbody.innerHTML = `<tr><td colspan="4" style="text-align: center; color: var(--text-dim); font-style: italic;">No bids recorded yet. Be the first to place a bid!</td></tr>`;
+        tbody.innerHTML = `<div class="ledger-placeholder">No bids recorded yet. Be the first to place a bid!</div>`;
         return;
     }
 
@@ -818,26 +780,60 @@ function renderAuctionBidHistory(list) {
         const cleanTimestampStr = (timestampStr.endsWith("Z") || timestampStr.includes("+")) ? timestampStr : timestampStr + "Z";
         const time = new Date(cleanTimestampStr).toLocaleTimeString();
         
-        let badgeClass = "badge-status status-pending";
-        if (bid.status === "success") badgeClass = "badge-status status-success";
-        if (bid.status === "failed") badgeClass = "badge-status status-failed";
+        let badgeStyle = "color: var(--text-muted);";
+        if (bid.status === "success") badgeStyle = "color: var(--neon-green); font-weight:600;";
+        if (bid.status === "failed") badgeStyle = "color: var(--neon-red);";
 
         return `
-            <tr>
-                <td>${time}</td>
-                <td>${escapeHTML(bid.username || `#${bid.user_id}`)}</td>
-                <td>$${formatMoney(bid.amount)}</td>
-                <td><span class="${badgeClass}">${bid.status}</span></td>
-            </tr>
+            <div class="ledger-item" style="display:flex; justify-content:space-between; align-items:center; padding: 10px 0; border-bottom: 1px solid rgba(255,255,255,0.05);">
+                <div style="display:flex; flex-direction:column;">
+                    <strong>${escapeHTML(bid.username || `#${bid.user_id}`)}</strong>
+                    <span style="font-size:0.75rem; opacity:0.5;">${time}</span>
+                </div>
+                <div style="text-align:right;">
+                    <div style="font-weight:600; font-size:1.05rem;">$${formatMoney(bid.amount)}</div>
+                    <span style="font-size:0.75rem; ${badgeStyle}">${bid.status.toUpperCase()}</span>
+                </div>
+            </div>
         `;
     }).join('');
+}
+
+async function handlePlaceBid(e, auctionId) {
+    e.preventDefault();
+    const input = document.getElementById(`bid-input-${auctionId}`);
+    const errorEl = document.getElementById(`error-msg-${auctionId}`);
+    const amount = parseFloat(input.value);
+    errorEl.textContent = "";
+
+    try {
+        const response = await fetch(`${API_BASE}/auctions/${auctionId}/bid`, {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+                "Authorization": `Bearer ${token}`
+            },
+            body: JSON.stringify({ amount })
+        });
+
+        if (!response.ok) {
+            const data = await response.json();
+            throw new Error(data.detail || "Failed to place bid");
+        }
+
+        showToast("Bid registered. Synchronizing...", "success");
+        input.value = "";
+    } catch (err) {
+        errorEl.textContent = err.message;
+        showToast(err.message, "error");
+    }
 }
 
 async function handlePlaceDetailBid(e) {
     e.preventDefault();
     if (!activeDetailAuctionId) return;
 
-    const input = document.getElementById("detail-bid-input");
+    const input = document.getElementById("bid-amount-input");
     const errorEl = document.getElementById("detail-bid-error");
     const amount = parseFloat(input.value);
     errorEl.textContent = "";
