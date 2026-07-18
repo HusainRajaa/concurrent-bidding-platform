@@ -177,7 +177,10 @@ async function fetchRequests(token) {
         
         const container = document.getElementById("requests-container");
         if (requests.length === 0) {
-            container.innerHTML = `<div class="empty-state">No access requests at this time.</div>`;
+            const emptyHtml = `<div class="empty-state">No access requests at this time.</div>`;
+            if (container.innerHTML !== emptyHtml) {
+                container.innerHTML = emptyHtml;
+            }
             return;
         }
 
@@ -212,7 +215,10 @@ async function fetchRequests(token) {
                 </div>
             `;
         });
-        container.innerHTML = html;
+        
+        if (container.innerHTML !== html) {
+            container.innerHTML = html;
+        }
     } catch (err) {
         console.error("Failed to load requests:", err);
     }
@@ -283,7 +289,10 @@ async function fetchActiveListings(token) {
 function renderListings(listings) {
     const container = document.getElementById("active-auctions-list");
     if (listings.length === 0) {
-        container.innerHTML = `<div class="empty-state">No active listings. Use the form above to list assets.</div>`;
+        const emptyHtml = `<div class="empty-state">No active listings. Use the form above to list assets.</div>`;
+        if (container.innerHTML !== emptyHtml) {
+            container.innerHTML = emptyHtml;
+        }
         return;
     }
 
@@ -305,7 +314,9 @@ function renderListings(listings) {
             </div>
         `;
     });
-    container.innerHTML = html;
+    if (container.innerHTML !== html) {
+        container.innerHTML = html;
+    }
 }
 
 // Recent Bid Trades
@@ -325,7 +336,10 @@ async function fetchTradeHistory(token) {
 function renderTrades(trades) {
     const stream = document.getElementById("ledger-stream");
     if (trades.length === 0) {
-        stream.innerHTML = `<div class="ledger-placeholder">No bid history found.</div>`;
+        const emptyHtml = `<div class="ledger-placeholder">No bid history found.</div>`;
+        if (stream.innerHTML !== emptyHtml) {
+            stream.innerHTML = emptyHtml;
+        }
         return;
     }
 
@@ -341,7 +355,9 @@ function renderTrades(trades) {
             </div>
         `;
     });
-    stream.innerHTML = html;
+    if (stream.innerHTML !== html) {
+        stream.innerHTML = html;
+    }
 }
 
 // Live WebSocket connection
