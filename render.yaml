@@ -1,0 +1,19 @@
+services:
+  - type: web
+    name: concurrent-bidding-platform
+    env: docker
+    plan: free
+    region: oregon
+    envVars:
+      - key: DATABASE_URL
+        sync: false
+        description: "The connection URL for your Neon PostgreSQL database (from your Neon console)"
+      - key: REDIS_URL
+        sync: false
+        description: "The connection URL for your Upstash Redis database (from your Upstash console)"
+      - key: JWT_SECRET_KEY
+        generateValue: true
+      - key: JWT_ALGORITHM
+        value: HS256
+      - key: ACCESS_TOKEN_EXPIRE_MINUTES
+        value: "60"
