@@ -38,8 +38,8 @@ services:
     ports:
       - "8000:7860"
     environment:
-      - DATABASE_URL=postgresql+asyncpg://nexbid_user:nexbid_password@postgres:5432/nexbid_db
-      - REDIS_URL=redis://redis:6379/0
+      - DATABASE_URL=${DATABASE_URL}
+      - REDIS_URL=${REDIS_URL}
       - JWT_SECRET_KEY=nexbid_super_secret_signing_key_for_jwt_tokens_replace_in_prod
       - JWT_ALGORITHM=HS256
       - ACCESS_TOKEN_EXPIRE_MINUTES=60

@@ -118,18 +118,39 @@ Railway will build, start, and assign a public `https://...` domain to your web 
 
 Render is another popular developer hosting provider offering free and paid plans.
 
-### Step 1: Deploy Database & Redis
-1. Log in to [Render.app](https://render.com/).
-2. Click **New** > **PostgreSQL** to create a managed database. Copy the internal database connection URL.
-3. Click **New** > **Redis** to spin up a Redis cache instance. Copy the internal Redis connection URL.
+### Step 1: Provision Redis & PostgreSQL Database
+
+Since Render's managed database has a 90-day limit on the free tier, and Render Redis is paid-only, using external free-tier providers is recommended for development/testing:
+
+#### A. Setup PostgreSQL (Neon.tech - Recommended Free Option)
+1. Create a free account on [Neon](https://neon.tech).
+2. Create a project and database.
+3. Copy the database connection string. It will look like:
+   `postgresql://username:password@host.neon.tech/dbname?sslmode=require`
+4. Save it—you'll need it when configuring Render.
+
+#### B. Setup Redis (Upstash - Recommended Free Option)
+1. Create a free account on [Upstash](https://upstash.com).
+2. Create a Serverless Redis database.
+3. Copy the Redis connection URL. It will look like:
+   `redis://default:password@host:port`
+4. Save it—you'll need it when configuring Render.
+
+#### C. Render-Managed Alternatives (Paid / Time-limited)
+If you prefer running everything within Render:
+1. Click **New** > **PostgreSQL** on Render to spin up a managed database (free for 90 days). Copy the database connection URL.
+2. Click **New** > **Redis** on Render to spin up a Redis cache instance (Paid tier required). Copy the connection URL.
 
 ### Step 2: Deploy the FastAPI App Service
-1. Click **New** > **Web Service**.
-2. Connect your GitHub repository.
-3. Choose **Docker** as the Runtime.
-4. Set the build command to use the local `Dockerfile`.
+1. Log in to [Render.app](https://render.com/).
+2. Click **New** > **Web Service**.
+3. Connect your GitHub repository.
+4. Choose **Docker** as the Runtime (Render automatically detects the root `Dockerfile`).
 5. Under **Environment Variables**, configure:
-   - `DATABASE_URL`: `<your-asyncpg-db-url>` (make sure to replace `postgresql://` with `postgresql+asyncpg://`).
-   - `REDIS_URL`: `<your-redis-url>`.
-   - `JWT_SECRET_KEY`: `<your-secret-key>`.
-6. Click **Deploy Web Service**. Render will build and deploy the container and generate a public URL.
+   - `DATABASE_URL`: `<your-database-connection-url>` (e.g. Neon or Render PG URL. Note: The app automatically converts the protocol prefix to `postgresql+asyncpg://` at startup, so standard `postgres://` or `postgresql://` works directly).
+   - `REDIS_URL`: `<your-redis-connection-url>` (e.g. Upstash or Render Redis URL).
+   - `JWT_SECRET_KEY`: `<your-secret-key>` (generate a secure key, e.g. using `openssl rand -hex 32`).
+   - `JWT_ALGORITHM`: `HS256`
+   - `ACCESS_TOKEN_EXPIRE_MINUTES`: `60`
+6. Click **Deploy Web Service**. Render will build and deploy the container and generate a public URL. WebSockets will work automatically.
+
