@@ -370,6 +370,43 @@ function connectWebSocket(token) {
                 return;
             }
             
+            if (data.type === "auction_ended") {
+                if (activeToken) {
+                    fetchActiveListings(activeToken);
+                }
+                const stream = document.getElementById("ledger-stream");
+                if (stream) {
+                    const placeholder = stream.querySelector(".ledger-placeholder");
+                    if (placeholder) placeholder.remove();
+                    
+                    const time = new Date().toLocaleTimeString();
+                    const item = document.createElement("div");
+                    item.className = "ledger-item";
+                    item.style.borderLeft = "3px solid #dc2626";
+                    item.style.background = "#fee2e2";
+                    item.style.padding = "8px 12px";
+                    item.style.marginBottom = "8px";
+                    
+                    if (data.highest_bidder_id) {
+                        item.innerHTML = `
+                            <span class="ledger-time">[${time}]</span>
+                            <strong style="color: #991b1b;">SOLD:</strong> 
+                            <span>"${data.auction_title}"</span> won by 
+                            <strong>${data.username}</strong> for 
+                            <strong style="color: #b91c1c;">₹${data.price.toLocaleString()}</strong>
+                        `;
+                    } else {
+                        item.innerHTML = `
+                            <span class="ledger-time">[${time}]</span>
+                            <span style="color: #6b7280; font-style: italic;">ENDED: "${data.auction_title}" ended with no bids.</span>
+                        `;
+                    }
+                    stream.insertBefore(item, stream.firstChild);
+                    if (stream.children.length > 50) stream.lastChild.remove();
+                }
+                return;
+            }
+            
             // Reload listings and trade history if any changes occur
             if (activeToken) {
                 fetchActiveListings(activeToken);
